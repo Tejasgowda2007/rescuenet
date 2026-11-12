@@ -16,6 +16,8 @@ An offline-first, peer-to-peer event-sourced disaster coordination system built 
 6. **Zero-Trust Security & Seized Device Protection:**
    - **Field-level encryption at rest (AES-256-GCM):** PII, patient conditions, and victim identities are encrypted using passphrase-derived keys (PBKDF2-HMAC-SHA256, 100k rounds). A seized laptop exposes zero plain text.
    - **Ed25519 digital signatures:** Every event is signed with the volunteer's private key. Forged or tampered events are rejected before entering SQLite.
+7. **Transport Independence & Real-World Networking:**
+   - Transport abstraction layer with support for **In-Memory simulation**, **Real TCP Local Wi-Fi / Hotspot Sockets**, and **BLE stubs**.
 
 ---
 
@@ -33,7 +35,9 @@ rescuenet/
 ├── transport/               # Transport abstraction layer
 │   ├── __init__.py
 │   ├── base.py              # Abstract Transport & TransportMessage wire serialization
-│   └── in_memory.py         # InMemoryTransport with partition cuts & wire byte counters
+│   ├── in_memory.py         # InMemoryTransport with partition cuts & wire byte counters
+│   ├── tcp.py               # Real TCP socket transport for Wi-Fi hotspot sync (4-byte length framing)
+│   └── ble_stub.py          # Bluetooth Low Energy (BLE 5.0) interface stub
 ├── sync/                    # Anti-entropy sync protocol
 │   ├── __init__.py
 │   ├── messages.py          # Message constants and SyncStats telemetry
@@ -62,41 +66,18 @@ rescuenet/
 │   ├── test_stage3.py       # Escrow, token ownership, & conflict resolution tests
 │   ├── test_stage4.py       # Multi-node partitions, transitive sync & chaos tests
 │   ├── test_stage5.py       # Invariant proof harness & misbehaving node tests
-│   └── test_stage6.py       # AES-GCM encryption, Ed25519 signatures & seized device tests
+│   ├── test_stage6.py       # AES-GCM encryption, Ed25519 signatures & seized device tests
+│   └── test_stage7.py       # TCP transport socket framing & hotspot mesh tests
 ├── demo_stage1.py           # Standalone terminal demonstration of Stage 1
 ├── demo_stage2.py           # Interactive terminal demonstration of Stage 2 (sync + bytes)
 ├── demo_stage3.py           # Demonstration of Stage 3 (escrow, boat token, conflicts)
 ├── demo_stage4.py           # Demonstration of Stage 4 (4-node hurricane scenario & mesh)
 ├── demo_stage5.py           # Stage 5 1,000-scenario automated proof harness
 ├── demo_stage6.py           # Stage 6 seized device forensic demonstration
+├── demo_stage7.py           # Stage 7 3-node real TCP socket demonstration
+├── run_node.py              # CLI runner for deploying real nodes on laptops / terminals
 ├── requirements.txt
 └── README.md
-```
-
----
-
-## Automated Proof Harness (Stage 5 Scorecard)
-
-Running `python demo_stage5.py` executes 1,000 distinct randomized partition & heal trials (auditing raw event logs):
-
-```
-============================================================================
-         RESCUENET AUTOMATIC INVARIANT PROOF HARNESS SCORECARD
-============================================================================
-  Total Scenarios Executed:     1,000 randomized partition/heal trials
-  Total Elapsed Test Time:      31.66 seconds (31.66 ms/scenario)
-  Total Events Generated:       31,179 events (31.2 ev/scenario)
-  Total Wire Bytes Transferred: 35,529,142 bytes (34.70 KB/scenario)
-----------------------------------------------------------------------------
-  INVARIANT TESTED                       | PASSED       | PASS RATE  | VERDICT
-----------------------------------------------------------------------------
-  (a) Identical State Convergence      | 1000         |  100.00%   | PASS
-  (b) Zero Lost Updates (Audit Intact) | 1000         |  100.00%   | PASS
-  (c) Indivisible Item Double Alloc=0  | 1000         |  100.00%   | PASS
-  (d) Divisible Supply Escrow Balance  | 1000         |  100.00%   | PASS
-============================================================================
-  FINAL VERDICT: 1000/1000 SCENARIOS PASSED (100.00%) -> 100.00% CONVERGENCE
-============================================================================
 ```
 
 ---
@@ -138,7 +119,39 @@ python demo_stage5.py
 python demo_stage6.py
 ```
 
+### Stage 7: Real TCP Socket Mesh (Hotspot Demo)
+```powershell
+python demo_stage7.py
+```
+
+### Running 3 Real Laptops on a Phone Hotspot (Internet OFF)
+You can run `run_node.py` on 3 separate laptops (or 3 terminal windows on one machine):
+
+**Terminal 1 (Laptop Alpha):**
+```powershell
+python run_node.py --id alpha --port 8001 --peers beta=127.0.0.1:8002,gamma=127.0.0.1:8003 --db alpha.db
+```
+
+**Terminal 2 (Laptop Beta):**
+```powershell
+python run_node.py --id beta --port 8002 --peers alpha=127.0.0.1:8001,gamma=127.0.0.1:8003 --db beta.db
+```
+
+**Terminal 3 (Laptop Gamma):**
+```powershell
+python run_node.py --id gamma --port 8003 --peers alpha=127.0.0.1:8001,beta=127.0.0.1:8002 --db gamma.db
+```
+
+Inside any terminal, type:
+- `shelter s1 "East Gym" 150`
+- `need n1 "Antibiotics" HIGH`
+- `person p1 "David Miller" MISSING`
+- `sync beta` or `sync-all`
+- `state`
+- `status`
+
 ### Run All Unit & Integration Tests (Pytest)
 ```powershell
 python -m pytest tests -v
 ```
+*(Note: To run TCP socket tests across loopback interfaces, execute outside sandboxed AppContainers)*.
