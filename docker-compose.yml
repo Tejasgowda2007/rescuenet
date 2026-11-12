@@ -1,0 +1,33 @@
+version: "3.9"
+services:
+  ui:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    command: ["streamlit", "run", "ui/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+
+  alpha:
+    build: .
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+    command: ["python", "run_node.py", "--id", "alpha", "--host", "0.0.0.0", "--port", "8001", "--peers", "beta=beta:8002,gamma=gamma:8003", "--db", "/app/data/alpha.db"]
+
+  beta:
+    build: .
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data:/app/data
+    command: ["python", "run_node.py", "--id", "beta", "--host", "0.0.0.0", "--port", "8002", "--peers", "alpha=alpha:8001,gamma=gamma:8003", "--db", "/app/data/beta.db"]
+
+  gamma:
+    build: .
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./data:/app/data
+    command: ["python", "run_node.py", "--id", "gamma", "--host", "0.0.0.0", "--port", "8003", "--peers", "alpha=alpha:8001,beta=beta:8002", "--db", "/app/data/gamma.db"]

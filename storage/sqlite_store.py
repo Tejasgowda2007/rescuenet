@@ -11,8 +11,14 @@ Key Invariants:
 from __future__ import annotations
 import sqlite3
 import json
+import threading
+import zlib
 from typing import Dict, List, Optional, Iterable
 from events.event import Event
+try:
+    from validation.schema import validate_event as _validate_event
+except Exception:  # pragma: no cover
+    _validate_event = None
 
 
 class StorageError(Exception):
@@ -37,8 +43,19 @@ class SQLiteEventStore:
         """
         self.db_path = db_path
         # Design Decision: check_same_thread=False allows sharing across simulator tasks or UI threads
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
+        # Durability + concurrency hardening
+        self._lock = threading.RLock()
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+            self.conn.execute("PRAGMA busy_timeout=30000")
+            self.conn.execute("PRAGMA foreign_keys=ON")
+            self.conn.execute("PRAGMA temp_store=MEMORY")
+            self.conn.commit()
+        except sqlite3.Error:
+            pass
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -76,11 +93,25 @@ class SQLiteEventStore:
             """)
 
     def append(self, event: Event) -> bool:
+        with self._lock:
+            return self._append_impl(event)
+
+    def append_many(self, events: Iterable[Event]) -> int:
+        with self._lock:
+            return self._append_many_impl(events)
+
+    def _append_impl(self, event: Event) -> bool:
         """
         Append a single event to the local log.
         :return: True if the event was newly added, False if it was already present (idempotent).
         :raises EquivocationError: If the node already logged a DIFFERENT event with the same counter.
         """
+        # Schema validation (offline, no network)
+        if _validate_event is not None:
+            try:
+                _validate_event(event)
+            except Exception as e:
+                raise StorageError(f"validation failed: {e}") from e
         # Step 1: Check if the exact event already exists (deduplication)
         cur = self.conn.cursor()
         cur.execute("SELECT event_id FROM events WHERE event_id = ?", (event.event_id,))
@@ -127,7 +158,7 @@ class SQLiteEventStore:
                 return False
             raise StorageError(f"Database integrity error: {e}") from e
 
-    def append_many(self, events: Iterable[Event]) -> int:
+    def _append_many_impl(self, events: Iterable[Event]) -> int:
         """
         Append multiple events within a single transaction.
         Returns count of newly inserted events.
@@ -135,7 +166,7 @@ class SQLiteEventStore:
         added_count = 0
         with self.conn:
             for ev in events:
-                if self.append(ev):
+                if self._append_impl(ev):
                     added_count += 1
         return added_count
 
@@ -235,3 +266,18 @@ class SQLiteEventStore:
             payload=json.loads(row["payload_json"]),
             signature=row["signature"],
         )
+
+
+# Thread-safety: wrap read/close methods with the store lock (WAL-friendly).
+for _name in ("get_event", "get_all_events", "get_events_for_entity", "get_version_vector", "get_events_since", "count", "close"):
+    _orig = getattr(SQLiteEventStore, _name)
+
+    def _make(orig):
+        def _wrapped(self, *args, **kwargs):
+            with self._lock:
+                return orig(self, *args, **kwargs)
+        _wrapped.__name__ = orig.__name__
+        _wrapped.__doc__ = orig.__doc__
+        return _wrapped
+
+    setattr(SQLiteEventStore, _name, _make(_orig))

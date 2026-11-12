@@ -3,7 +3,22 @@ Sync Protocol Message Constants and Session Statistics.
 """
 
 from __future__ import annotations
+import base64
+import json
+import zlib
 from dataclasses import dataclass
+
+def compress_events(events_list):
+    """Compress a list of event dicts into a base64 zlib string for weak links."""
+    raw = json.dumps(events_list, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return base64.b64encode(zlib.compress(raw, level=9)).decode("ascii")
+
+def decompress_events(payload):
+    """Accept either 'events' (list) or 'events_z' (compressed str)."""
+    if "events_z" in payload and payload.get("events_z"):
+        raw = zlib.decompress(base64.b64decode(payload["events_z"]))
+        return json.loads(raw.decode("utf-8"))
+    return payload.get("events", [])
 
 # Protocol Message Types
 MSG_SYNC_REQUEST = "SYNC_REQUEST"    # Step 1: Initiator sends local Version Vector

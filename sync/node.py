@@ -19,6 +19,8 @@ from .messages import (
     MSG_SYNC_RESPONSE,
     MSG_SYNC_DELTA,
     MSG_SYNC_ACK,
+    compress_events,
+    decompress_events,
 )
 
 
@@ -209,7 +211,7 @@ class Node:
 
         # Step 2: Verify and ingest events sent from peer
         peer_vv = dict(resp_msg.payload.get("version_vector", {}))
-        events_from_peer_dicts = resp_msg.payload.get("events", [])
+        events_from_peer_dicts = decompress_events(resp_msg.payload)
         events_from_peer = [Event.from_dict(d) for d in events_from_peer_dicts]
         valid_events = self._verify_and_filter_events(events_from_peer)
 
@@ -224,7 +226,7 @@ class Node:
                 sender_id=self.node_id,
                 recipient_id=peer_id,
                 message_type=MSG_SYNC_DELTA,
-                payload={"events": [e.to_dict() for e in events_for_peer]},
+                payload={"events_z": compress_events([e.to_dict() for e in events_for_peer])},
             )
             bytes_sent += delta_msg.wire_byte_size()
             events_sent_count = len(events_for_peer)
@@ -261,12 +263,12 @@ class Node:
                 message_type=MSG_SYNC_RESPONSE,
                 payload={
                     "version_vector": my_vv,
-                    "events": [e.to_dict() for e in missing_for_peer],
+                    "events_z": compress_events([e.to_dict() for e in missing_for_peer]),
                 },
             )
 
         elif message.message_type == MSG_SYNC_DELTA:
-            incoming_event_dicts = message.payload.get("events", [])
+            incoming_event_dicts = decompress_events(message.payload)
             incoming_events = [Event.from_dict(d) for d in incoming_event_dicts]
             valid_events = self._verify_and_filter_events(incoming_events)
             ingested_count = self.store.append_many(valid_events)
