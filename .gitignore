@@ -2,3 +2,6 @@ demo_node_alpha.db
 __pycache__/
 .pytest_cache/
 *.pyc
+.venv/
+.agents/
+.claude/

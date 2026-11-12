@@ -93,7 +93,7 @@ python demo_stage7.py   # 3-node live TCP socket synchronization
 ## Test Report
 
 ### Automated Test Suite (`pytest`)
-All **37 unit and integration tests** across Stages 1–8 pass cleanly:
+All **40 unit and integration tests** across Stages 1–8 pass cleanly:
 ```powershell
 python -m pytest tests -v
 ```

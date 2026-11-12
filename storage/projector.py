@@ -54,6 +54,7 @@ class StateProjector:
         state: Dict[str, Dict[str, Any]] = {
             "shelter": {},
             "supply": {},
+            "supply_intent": {},
             "need": {},
             "person": {},
             "scarce_item": {},
@@ -79,6 +80,64 @@ class StateProjector:
         # -------------------------------------------------------------
         # 1. ESCROW OPERATIONS (Divisible Supplies)
         # -------------------------------------------------------------
+        if etype == "supply_intent" and op == "INIT_POOL":
+            bucket[eid] = {
+                "entity_id": eid,
+                "item_name": event.payload.get("item_name", "Medical Kits"),
+                "total_quantity": event.payload.get("total_quantity", 10),
+                "unit": event.payload.get("unit", "kits"),
+                "intentions": {},
+                "intention_history": [],
+                "collision_detected": False,
+                "deficit": 0,
+                "total_claimed": 0,
+                "approved_allocations": {},
+                "resolved": False,
+                "_created_at": event.timestamp,
+                "_created_by": event.node_id,
+                "_last_updated_at": event.timestamp,
+                "_last_updated_by": event.node_id,
+            }
+            return
+
+        elif etype == "supply_intent" and op == "RECORD_INTENT":
+            if eid in bucket:
+                record = bucket[eid]
+                qty = event.payload.get("quantity", 0)
+                consumer_node = event.payload.get("requested_by", event.node_id)
+                record["intentions"][consumer_node] = qty
+                record["intention_history"].append({
+                    "event_id": event.event_id,
+                    "node_id": consumer_node,
+                    "quantity": qty,
+                    "beneficiary": event.payload.get("beneficiary", ""),
+                    "timestamp": event.timestamp,
+                })
+                total_claimed = sum(record["intentions"].values())
+                record["total_claimed"] = total_claimed
+                if total_claimed > record["total_quantity"] and not record["resolved"]:
+                    record["collision_detected"] = True
+                    record["deficit"] = total_claimed - record["total_quantity"]
+                else:
+                    record["collision_detected"] = False
+                    record["deficit"] = 0
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+            return
+
+        elif etype == "supply_intent" and op == "RESOLVE_COLLISION":
+            if eid in bucket:
+                record = bucket[eid]
+                record["approved_allocations"] = dict(event.payload.get("approved_allocations", {}))
+                record["collision_detected"] = False
+                record["deficit"] = 0
+                record["resolved"] = True
+                record["_resolved_by"] = event.node_id
+                record["_resolution_notes"] = event.payload.get("resolution_notes", "")
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+            return
+
         if etype == "supply" and op == "INIT_ESCROW":
             bucket[eid] = {
                 "entity_id": eid,
