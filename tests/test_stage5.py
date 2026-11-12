@@ -101,10 +101,11 @@ def test_misbehaving_node_direct_over_allocation_rejected():
 
     # Rogue node deliberately BYPASSES EscrowManager and directly appends a fraudulent over-allocation
     # Rogue has quota 50, but writes an event consuming 9,999 units directly into its SQLite store!
+    latest_ts = honest_node.store.get_all_events()[-1].timestamp
     rogue_fraud_event = Event(
         node_id="rogue-node",
         counter=rogue_node._local_counter + 1,
-        timestamp=1000.0,
+        timestamp=latest_ts + 10.0,
         entity_type="supply",
         entity_id="supply-insulin",
         operation="CONSUME_QUOTA",
@@ -116,7 +117,7 @@ def test_misbehaving_node_direct_over_allocation_rejected():
     rogue_boat_event = Event(
         node_id="rogue-node",
         counter=rogue_node._local_counter + 2,
-        timestamp=1005.0,
+        timestamp=latest_ts + 20.0,
         entity_type="scarce_item",
         entity_id="boat-alpha",
         operation="CONFIRM_ALLOCATION",

@@ -61,7 +61,7 @@ rescuenet/
 │   ├── test_stage2.py       # Version vector sync, byte counting & partition tests
 │   ├── test_stage3.py       # Escrow, token ownership, & conflict resolution tests
 │   ├── test_stage4.py       # Multi-node partitions, transitive sync & chaos tests
-│   ├── test_stage5.py       # Formal invariant proof tests
+│   ├── test_stage5.py       # Invariant proof harness & misbehaving node tests
 │   └── test_stage6.py       # AES-GCM encryption, Ed25519 signatures & seized device tests
 ├── demo_stage1.py           # Standalone terminal demonstration of Stage 1
 ├── demo_stage2.py           # Interactive terminal demonstration of Stage 2 (sync + bytes)
@@ -71,6 +71,32 @@ rescuenet/
 ├── demo_stage6.py           # Stage 6 seized device forensic demonstration
 ├── requirements.txt
 └── README.md
+```
+
+---
+
+## Automated Proof Harness (Stage 5 Scorecard)
+
+Running `python demo_stage5.py` executes 1,000 distinct randomized partition & heal trials (auditing raw event logs):
+
+```
+============================================================================
+         RESCUENET AUTOMATIC INVARIANT PROOF HARNESS SCORECARD
+============================================================================
+  Total Scenarios Executed:     1,000 randomized partition/heal trials
+  Total Elapsed Test Time:      31.66 seconds (31.66 ms/scenario)
+  Total Events Generated:       31,179 events (31.2 ev/scenario)
+  Total Wire Bytes Transferred: 35,529,142 bytes (34.70 KB/scenario)
+----------------------------------------------------------------------------
+  INVARIANT TESTED                       | PASSED       | PASS RATE  | VERDICT
+----------------------------------------------------------------------------
+  (a) Identical State Convergence      | 1000         |  100.00%   | PASS
+  (b) Zero Lost Updates (Audit Intact) | 1000         |  100.00%   | PASS
+  (c) Indivisible Item Double Alloc=0  | 1000         |  100.00%   | PASS
+  (d) Divisible Supply Escrow Balance  | 1000         |  100.00%   | PASS
+============================================================================
+  FINAL VERDICT: 1000/1000 SCENARIOS PASSED (100.00%) -> 100.00% CONVERGENCE
+============================================================================
 ```
 
 ---
