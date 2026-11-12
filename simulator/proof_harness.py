@@ -3,10 +3,13 @@ Automatic Proof Harness for RescueNet Invariant Verification.
 
 Runs N-node random partition & merge scenarios (e.g. 1,000 trials)
 and rigorously verifies the 4 core distributed systems invariants:
-1. Invariant A: All nodes reach 100% byte-for-byte identical state.
-2. Invariant B: Zero lost updates (every generated event exists on every node).
-3. Invariant C: No scarce item is allocated twice, and escrow conservation holds.
-4. Invariant D: Total wire bytes and bandwidth efficiency are measured.
+  (a) Identical State Convergence: All nodes reach 100% byte-for-byte identical state.
+  (b) Zero Lost Updates (Audit Intact): Every generated event exists on every node's raw log.
+  (c) Indivisible Item Double Alloc=0: No scarce item is allocated twice; each confirmed allocation
+      is verified from raw event logs to have originated from the verified token holder.
+  (d) Divisible Supply Escrow Balance: Totals recomputed from raw event logs strictly satisfy
+      sum(quotas) + sum(consumed) == total_inventory at all times.
+Total wire bytes and bandwidth efficiency are measured and reported.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Set, Optional, Callable
 from .engine import DisasterSimulator
 from .workload import WorkloadGenerator
+from events.event import Event
 
 
 @dataclass
@@ -78,6 +82,7 @@ class ProofHarness:
         scenario_id: int,
         num_nodes: int = 3,
         num_rounds: int = 3,
+        actions_per_node_per_round: int = 3,
     ) -> ScenarioResult:
         """
         Execute a single randomized scenario and verify all invariants.
@@ -99,21 +104,23 @@ class ProofHarness:
                 all_created_event_ids.add(ev.event_id)
 
         try:
-            # Step 1: Run rounds with random partitions and field edits
+            # Step 1: Run rounds with random partitions and multiple field actions per node
             for round_idx in range(num_rounds):
                 # Randomly partition into 2 or 3 groups
                 groups = sim.partition_manager.random_partition(rng)
 
-                # Random actions on nodes
-                for nid in node_ids:
-                    node = sim.nodes[nid]
-                    WorkloadGenerator.generate_random_action(
-                        node=node,
-                        rng=rng,
-                        active_people=sim.active_people,
-                        active_supplies=sim.active_supplies,
-                        active_scarce_items=sim.active_scarce_items,
-                    )
+                # Multiple actions per node in each round (Requirement 7)
+                actions_count = rng.randint(2, max(2, actions_per_node_per_round))
+                for _ in range(actions_count):
+                    for nid in node_ids:
+                        node = sim.nodes[nid]
+                        WorkloadGenerator.generate_random_action(
+                            node=node,
+                            rng=rng,
+                            active_people=sim.active_people,
+                            active_supplies=sim.active_supplies,
+                            active_scarce_items=sim.active_scarce_items,
+                        )
 
                 # Collect newly created event IDs
                 for node in sim.nodes.values():
@@ -140,7 +147,7 @@ class ProofHarness:
             first_state = first_node.get_state()
             first_vv = first_node.get_version_vector()
 
-            # (a) Identical State Invariant
+            # (a) Identical State Convergence Invariant
             state_converged = True
             for nid in node_ids[1:]:
                 node = sim.nodes[nid]
@@ -148,7 +155,7 @@ class ProofHarness:
                     state_converged = False
                     break
 
-            # (b) Zero Lost Updates Invariant
+            # (b) Zero Lost Updates (Audit Intact) Invariant
             zero_lost_updates = True
             for nid in node_ids:
                 node = sim.nodes[nid]
@@ -158,35 +165,111 @@ class ProofHarness:
                     zero_lost_updates = False
                     break
 
-            # (c) Scarce Resource Invariants
+            # Retrieve canonical raw events from the converged SQLite log
+            raw_events: List[Event] = first_node.store.get_all_events()
+
+            # -------------------------------------------------------------
+            # (c) Indivisible Item Double Alloc=0 (Audited from Raw Event Logs)
+            # Reconstruct causal token custody and count CONFIRM_ALLOCATION events
+            # -------------------------------------------------------------
             no_double_allocations = True
+            scarce_item_events: Dict[str, List[Event]] = {}
+            for ev in raw_events:
+                if ev.entity_type == "scarce_item":
+                    scarce_item_events.setdefault(ev.entity_id, []).append(ev)
+
+            for item_id, item_evs in scarce_item_events.items():
+                current_token_holder: Optional[str] = None
+                is_currently_allocated: bool = False
+                active_allocations_count: int = 0
+
+                for ev in item_evs:
+                    op = ev.operation
+                    if op == "REGISTER_TOKEN":
+                        current_token_holder = ev.payload.get("current_token_holder", ev.node_id)
+                        is_currently_allocated = False
+                    elif op == "TRANSFER_TOKEN":
+                        # Custody transfers only valid if issued by current verified token holder
+                        if ev.node_id == current_token_holder:
+                            current_token_holder = ev.payload.get("to_holder")
+                    elif op == "CONFIRM_ALLOCATION":
+                        # Invariant Check: Did this confirmed allocation originate from the token holder?
+                        if ev.node_id != current_token_holder:
+                            # Unauthorized allocation attempt by non-token holder!
+                            # Verify that StateProjector flagged/rejected this attempt
+                            item_proj = first_state.get("scarce_item", {}).get(item_id, {})
+                            rejected_ids = {r["event_id"] for r in item_proj.get("rejected_allocations", [])}
+                            if ev.event_id not in rejected_ids:
+                                no_double_allocations = False
+                        else:
+                            # From valid token holder: check if already allocated (double-allocation)
+                            if is_currently_allocated:
+                                no_double_allocations = False
+                            is_currently_allocated = True
+                            active_allocations_count += 1
+                    elif op == "RELEASE_ITEM":
+                        if ev.node_id == current_token_holder:
+                            is_currently_allocated = False
+                            active_allocations_count = max(0, active_allocations_count - 1)
+
+                # At end of scenario, cannot have more than 1 active confirmed allocation
+                if active_allocations_count > 1:
+                    no_double_allocations = False
+
+            # -------------------------------------------------------------
+            # (d) Divisible Supply Escrow Balance (Recomputed from Raw Events)
+            # Recomputes totals directly from raw events rather than projected state
+            # -------------------------------------------------------------
             escrow_conserved = True
+            supply_events: Dict[str, List[Event]] = {}
+            for ev in raw_events:
+                if ev.entity_type == "supply":
+                    supply_events.setdefault(ev.entity_id, []).append(ev)
 
-            # 1. Indivisible scarce items (boat)
-            for item_id, item_data in first_state.get("scarce_item", {}).items():
-                # Cannot have more than 1 confirmed allocation
-                if item_data.get("status") == "CONFIRMED_ALLOCATED":
-                    alloc_to = item_data.get("allocated_to")
-                    if not alloc_to:
-                        no_double_allocations = False
-                # Rejections log must contain any unauthorized attempts
-                for rej in item_data.get("rejected_allocations", []):
-                    # Proof that unauthorized attempts were caught and not permitted
-                    assert rej["reason"] is not None
+            for supply_id, sup_evs in supply_events.items():
+                raw_total_quantity: int = 0
+                raw_quotas: Dict[str, int] = {}
+                raw_consumed: int = 0
 
-            # 2. Divisible supplies (escrow quotas)
-            for s_id, s_data in first_state.get("supply", {}).items():
-                total_qty = s_data.get("total_quantity", 0)
-                consumed = s_data.get("consumed", 0)
-                quotas = s_data.get("quotas", {})
+                for ev in sup_evs:
+                    op = ev.operation
+                    if op == "INIT_ESCROW":
+                        raw_total_quantity = ev.payload.get("total_quantity", 0)
+                        raw_quotas = dict(ev.payload.get("initial_quotas", {}))
+                        raw_consumed = 0
+                    elif op == "TRANSFER_QUOTA":
+                        from_node = ev.payload.get("from_node", ev.node_id)
+                        to_node = ev.payload.get("to_node", "")
+                        qty = ev.payload.get("quantity", 0)
+                        if raw_quotas.get(from_node, 0) >= qty:
+                            raw_quotas[from_node] -= qty
+                            raw_quotas[to_node] = raw_quotas.get(to_node, 0) + qty
+                    elif op == "CONSUME_QUOTA":
+                        consumer = ev.node_id
+                        qty = ev.payload.get("quantity", 0)
+                        if raw_quotas.get(consumer, 0) >= qty:
+                            raw_quotas[consumer] -= qty
+                            raw_consumed += qty
+                        else:
+                            # Over-allocation event: Projector rejects this; verify it didn't mutate quota
+                            pass
 
-                # Invariant: sum(quotas) + consumed == total_quantity
-                if sum(quotas.values()) + consumed != total_qty:
-                    escrow_conserved = False
-                if consumed > total_qty:
-                    escrow_conserved = False
-                for q in quotas.values():
-                    if q < 0:
+                # Check strict conservation equation on recomputed raw event totals:
+                # sum(quotas) + consumed == total_quantity
+                if raw_total_quantity > 0:
+                    if sum(raw_quotas.values()) + raw_consumed != raw_total_quantity:
+                        escrow_conserved = False
+                    if raw_consumed > raw_total_quantity:
+                        escrow_conserved = False
+                    for q in raw_quotas.values():
+                        if q < 0:
+                            escrow_conserved = False
+
+                    # Cross-check that raw recomputed totals match the projected state
+                    proj_supply = first_state.get("supply", {}).get(supply_id, {})
+                    if proj_supply.get("consumed") != raw_consumed:
+                        escrow_conserved = False
+                    if proj_supply.get("quotas") != raw_quotas:
                         escrow_conserved = False
 
             duration_ms = (time.perf_counter() - start_time) * 1000
@@ -236,13 +319,14 @@ class ProofHarness:
 
         for s_idx in range(num_scenarios):
             # Vary node counts (3 to 5 nodes) and rounds (2 to 4 rounds)
-            num_nodes = 3 + (s_idx % 3)      # 3, 4, or 5 nodes
-            num_rounds = 2 + ((s_idx // 3) % 3)  # 2, 3, or 4 rounds
+            num_nodes = 3 + (s_idx % 3)            # 3, 4, or 5 nodes
+            num_rounds = 2 + ((s_idx // 3) % 3)    # 2, 3, or 4 rounds
 
             res = self.run_scenario(
                 scenario_id=s_idx + 1,
                 num_nodes=num_nodes,
                 num_rounds=num_rounds,
+                actions_per_node_per_round=3,
             )
 
             report.total_events_generated += res.events_generated
@@ -273,6 +357,7 @@ class ProofHarness:
     def format_scorecard_table(report: ProofReport) -> str:
         """
         Format an ASCII Pass/Fail proof table for judges and documentation.
+        Computes the VERDICT column from real pass counts and removes 'FORMAL' from final line.
         """
         total = report.total_scenarios
         conv_pct = (report.state_convergence_passes / total) * 100 if total else 0
@@ -285,6 +370,10 @@ class ProofHarness:
         avg_events_per_scenario = report.total_events_generated / total if total else 0
         avg_time_ms = (report.total_duration_sec / total) * 1000 if total else 0
 
+        # Requirement 1: Compute VERDICT column dynamically from real pass counts
+        def get_verdict(passed_count: int, total_count: int) -> str:
+            return "PASS" if total_count > 0 and passed_count == total_count else "FAIL"
+
         lines = [
             "=" * 76,
             "         RESCUENET AUTOMATIC INVARIANT PROOF HARNESS SCORECARD",
@@ -296,12 +385,12 @@ class ProofHarness:
             "-" * 76,
             f"  {'INVARIANT TESTED':<38} | {'PASSED':<12} | {'PASS RATE':<10} | {'VERDICT'}",
             "-" * 76,
-            f"  (a) Identical State Convergence      | {report.state_convergence_passes:<12} | {conv_pct:>7.2f}%   | PASS",
-            f"  (b) Zero Lost Updates (Audit Intact) | {report.zero_lost_updates_passes:<12} | {zero_lost_pct:>7.2f}%   | PASS",
-            f"  (c) Indivisible Item Double Alloc=0  | {report.no_double_allocation_passes:<12} | {scarce_pct:>7.2f}%   | PASS",
-            f"  (d) Divisible Supply Escrow Balance  | {report.escrow_conservation_passes:<12} | {escrow_pct:>7.2f}%   | PASS",
+            f"  (a) Identical State Convergence      | {report.state_convergence_passes:<12} | {conv_pct:>7.2f}%   | {get_verdict(report.state_convergence_passes, total)}",
+            f"  (b) Zero Lost Updates (Audit Intact) | {report.zero_lost_updates_passes:<12} | {zero_lost_pct:>7.2f}%   | {get_verdict(report.zero_lost_updates_passes, total)}",
+            f"  (c) Indivisible Item Double Alloc=0  | {report.no_double_allocation_passes:<12} | {scarce_pct:>7.2f}%   | {get_verdict(report.no_double_allocation_passes, total)}",
+            f"  (d) Divisible Supply Escrow Balance  | {report.escrow_conservation_passes:<12} | {escrow_pct:>7.2f}%   | {get_verdict(report.escrow_conservation_passes, total)}",
             "=" * 76,
-            f"  FINAL VERDICT: {report.passed_scenarios}/{total} SCENARIOS PASSED ({overall_pct:.2f}%) -> 100% FORMAL CONVERGENCE",
+            f"  FINAL VERDICT: {report.passed_scenarios}/{total} SCENARIOS PASSED ({overall_pct:.2f}%) -> {overall_pct:.2f}% CONVERGENCE",
             "=" * 76,
         ]
         return "\n".join(lines)

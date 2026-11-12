@@ -1,5 +1,5 @@
 """
-RescueNet Node: Coordinator combining Event Store, State Projector, and Sync Engine.
+RescueNet Node: Coordinator combining Event Store, State Projector, Crypto Keyring, and Sync Engine.
 
 Each physical or simulated device is represented by an instance of Node.
 Volunteers interact with this node locally with zero internet.
@@ -32,6 +32,10 @@ class Node:
        guaranteeing no counter collision or equivocation.
     3. Bi-Directional Anti-Entropy: Sync is symmetrical. After one sync handshake,
        both nodes hold the exact union of each other's event histories.
+    4. Cryptographic Security (Stage 6):
+       - If a NodeKeyring is attached:
+         * Sensitive payload fields are encrypted at rest with passphrase-derived AES-256-GCM.
+         * Events are signed with Ed25519; incoming forged events are rejected.
     """
 
     def __init__(
@@ -39,11 +43,13 @@ class Node:
         node_id: str,
         db_path: str = ":memory:",
         transport: Optional[Transport] = None,
+        keyring: Optional[Any] = None,  # Optional NodeKeyring
     ) -> None:
         self.node_id = node_id
         self.store = SQLiteEventStore(db_path)
         self.projector = StateProjector()
         self.transport = transport
+        self.keyring = keyring
 
         # Initialize local counter from persistent store (resilient to restarts)
         existing_vv = self.store.get_version_vector()
@@ -58,6 +64,10 @@ class Node:
         self.transport = transport
         self.transport.register_node(self.node_id, self.handle_transport_message)
 
+    def set_keyring(self, keyring: Any) -> None:
+        """Attach cryptographic keyring for field encryption and digital signatures."""
+        self.keyring = keyring
+
     def record_event(
         self,
         entity_type: str,
@@ -68,10 +78,15 @@ class Node:
     ) -> Event:
         """
         Record a local action taken by the volunteer with NO internet.
-        Increments the node's local logical counter and appends to local SQLite.
+        Increments the node's local logical counter, encrypts sensitive fields,
+        signs with private key, and appends to local SQLite.
         """
         self._local_counter += 1
         ts = timestamp if timestamp is not None else time.time()
+
+        stored_payload = payload
+        if self.keyring is not None:
+            stored_payload = self.keyring.encrypt_payload(payload)
 
         event = Event(
             node_id=self.node_id,
@@ -80,20 +95,63 @@ class Node:
             entity_type=entity_type,
             entity_id=entity_id,
             operation=operation,
-            payload=payload,
+            payload=stored_payload,
         )
+
+        if self.keyring is not None:
+            event = self.keyring.sign_event(event)
 
         self.store.append(event)
         return event
 
     def get_state(self) -> Dict[str, Dict[str, Any]]:
-        """Materialize current domain state directly from local event log."""
+        """
+        Materialize current domain state directly from local event log.
+        If keyring is attached, decrypts sensitive fields for authorized display.
+        """
         all_events = self.store.get_all_events()
+
+        if self.keyring is not None:
+            decrypted_events = [
+                Event(
+                    node_id=e.node_id,
+                    counter=e.counter,
+                    timestamp=e.timestamp,
+                    entity_type=e.entity_type,
+                    entity_id=e.entity_id,
+                    operation=e.operation,
+                    payload=self.keyring.decrypt_payload(e.payload),
+                    signature=e.signature,
+                    event_id=e.event_id,
+                )
+                for e in all_events
+            ]
+            return self.projector.compute_state(decrypted_events)
+
         return self.projector.compute_state(all_events)
 
     def get_version_vector(self) -> Dict[str, int]:
         """Return the current local version vector {node_id: max_counter}."""
         return self.store.get_version_vector()
+
+    def _verify_and_filter_events(self, events: List[Event]) -> List[Event]:
+        """
+        Drop any incoming event that fails signature verification.
+        Design Decision:
+        Prevents forged or tampered updates from ever being written to SQLite.
+        """
+        if self.keyring is None:
+            return events
+
+        valid_events = []
+        for ev in events:
+            # If the peer's public key is known, enforce signature check
+            if ev.node_id in self.keyring.trusted_peers:
+                if not self.keyring.verify_event(ev):
+                    # Forged or tampered signature! Drop event
+                    continue
+            valid_events.append(ev)
+        return valid_events
 
     def sync_with(self, peer_id: str) -> SyncStats:
         """
@@ -102,8 +160,7 @@ class Node:
         Protocol Flow:
         1. Initiator (Self) -> SYNC_REQUEST(V_self) -> Responder (Peer)
         2. Responder replies with SYNC_RESPONSE(V_peer, missing_events_for_self)
-        3. Initiator ingests missing_events, then checks what responder is missing:
-           Initiator -> SYNC_DELTA(missing_events_for_peer) -> Responder
+        3. Initiator verifies signatures, ingests missing_events, then sends SYNC_DELTA.
         4. Responder acknowledges with SYNC_ACK.
         """
         if self.transport is None:
@@ -150,14 +207,15 @@ class Node:
 
         bytes_received += resp_msg.wire_byte_size()
 
-        # Step 2: Ingest events sent from peer
+        # Step 2: Verify and ingest events sent from peer
         peer_vv = dict(resp_msg.payload.get("version_vector", {}))
         events_from_peer_dicts = resp_msg.payload.get("events", [])
         events_from_peer = [Event.from_dict(d) for d in events_from_peer_dicts]
+        valid_events = self._verify_and_filter_events(events_from_peer)
 
-        if events_from_peer:
-            self.store.append_many(events_from_peer)
-            events_received_count = len(events_from_peer)
+        if valid_events:
+            self.store.append_many(valid_events)
+            events_received_count = len(valid_events)
 
         # Step 3: Determine what events peer is missing based on peer's version vector
         events_for_peer = self.store.get_events_since(peer_vv)
@@ -193,12 +251,8 @@ class Node:
         Server-side handler called by transport when a peer sends a message to this node.
         """
         if message.message_type == MSG_SYNC_REQUEST:
-            # Peer wants to sync with us:
-            # 1. Inspect peer's version vector
             peer_vv = dict(message.payload.get("version_vector", {}))
-            # 2. Extract events peer has not seen
             missing_for_peer = self.store.get_events_since(peer_vv)
-            # 3. Read our own version vector
             my_vv = self.get_version_vector()
 
             return TransportMessage(
@@ -212,10 +266,10 @@ class Node:
             )
 
         elif message.message_type == MSG_SYNC_DELTA:
-            # Peer is delivering events that we were missing
             incoming_event_dicts = message.payload.get("events", [])
             incoming_events = [Event.from_dict(d) for d in incoming_event_dicts]
-            ingested_count = self.store.append_many(incoming_events)
+            valid_events = self._verify_and_filter_events(incoming_events)
+            ingested_count = self.store.append_many(valid_events)
 
             return TransportMessage(
                 sender_id=self.node_id,

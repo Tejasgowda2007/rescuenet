@@ -104,11 +104,15 @@ class DisasterSimulator:
 
         self.transport.reset_stats()
 
-    def step(self, partition_groups: Optional[List[List[str]]] = None) -> List[str]:
+    def step(
+        self,
+        partition_groups: Optional[List[List[str]]] = None,
+        actions_per_node: int = 2,
+    ) -> List[str]:
         """
         Execute one simulation step:
         1. Set network partition topology.
-        2. Perform local operations on partitioned nodes.
+        2. Perform local operations on partitioned nodes (multiple actions per node).
         3. Attempt sync within connected clusters.
         """
         round_logs: List[str] = []
@@ -122,14 +126,15 @@ class DisasterSimulator:
 
         round_logs.append(f"Round {self.report.rounds_executed} Partition Topology: {partition_groups}")
 
-        # Step 2: Random offline actions in each partition
-        for nid in self.node_ids:
-            node = self.nodes[nid]
-            action_log = WorkloadGenerator.generate_random_action(
-                node, self.rng, self.active_people, self.active_supplies, self.active_scarce_items
-            )
-            round_logs.append(f"  [Action] {action_log}")
-            self.report.events_created += 1
+        # Step 2: Random offline actions in each partition (multiple actions per node)
+        for _ in range(max(1, actions_per_node)):
+            for nid in self.node_ids:
+                node = self.nodes[nid]
+                action_log = WorkloadGenerator.generate_random_action(
+                    node, self.rng, self.active_people, self.active_supplies, self.active_scarce_items
+                )
+                round_logs.append(f"  [Action] {action_log}")
+                self.report.events_created += 1
 
         # Step 3: Attempt syncs between randomly chosen pairs
         pairs = []
