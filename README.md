@@ -27,30 +27,48 @@ rescuenet/
 │   ├── __init__.py
 │   ├── sqlite_store.py      # Append-only SQLite engine with anti-equivocation enforcement
 │   └── projector.py         # Deterministic reducer / materialized state projector
-├── sync/                    # Stage 2: Version-vector sync & byte counter
+├── transport/               # Transport abstraction layer
+│   ├── __init__.py
+│   ├── base.py              # Abstract Transport & TransportMessage wire serialization
+│   └── in_memory.py         # InMemoryTransport with partition cuts & wire byte counters
+├── sync/                    # Anti-entropy sync protocol
+│   ├── __init__.py
+│   ├── messages.py          # Message constants and SyncStats telemetry
+│   └── node.py              # Node coordinator (Store + Projector + Sync engine)
 ├── allocation/              # Stage 3: Escrow quotas & single-owner scarce item tokens
 ├── simulator/               # Stage 4 & 5: Partition simulator & 1000-scenario proof harness
 ├── crypto/                  # Stage 6: Field-level AES-GCM encryption & Ed25519 signatures
-├── transport/               # Stage 7: Abstract transport & TCP LAN sync
 ├── ui/                      # Stage 8: Streamlit 3-node interactive partition demo
 ├── tests/
 │   ├── __init__.py
-│   └── test_stage1.py       # Unit tests for event logging, idempotency & projection
+│   ├── test_stage1.py       # Unit tests for event logging, idempotency & projection
+│   └── test_stage2.py       # Tests for version vector sync, byte counting & partitions
 ├── demo_stage1.py           # Standalone terminal demonstration of Stage 1
+├── demo_stage2.py           # Interactive terminal demonstration of Stage 2 (sync + bytes)
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## Stage 1: How to Run and Test
+## How to Run and Test
 
-### 1. Run Unit Tests (Pytest)
-```bash
-python -m pytest tests/test_stage1.py -v
+Make sure your shell is inside the project directory:
+```powershell
+cd C:\Users\gowda\.gemini\antigravity\scratch\rescuenet
 ```
 
-### 2. Run Interactive Stage 1 Terminal Demo
-```bash
+### Stage 1: Event Log & State Projection
+```powershell
 python demo_stage1.py
+```
+
+### Stage 2: Anti-Entropy Sync & Byte Counting
+```powershell
+python demo_stage2.py
+```
+
+### Run All Unit & Integration Tests (Pytest)
+```powershell
+python -m pytest tests -v
 ```
