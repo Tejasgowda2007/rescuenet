@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StationData } from '../../types';
 import { Building2, Battery, Database, Plus, Check, AlertOctagon, Radio, Power, Server } from 'lucide-react';
+import { offlineStorage } from '../../services/offlineStorage';
 
 interface StationsViewProps {
   stations: Record<string, StationData>;
@@ -43,12 +44,40 @@ export const StationsView: React.FC<StationsViewProps> = ({ stations, onRefresh 
           payload,
         }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setLogSuccess(`Recorded locally in ${selected.name}'s SQLite store (Sequence #${data.counter})`);
+      setLogSuccess(`Recorded locally in ${selected.name}'s SQLite store (Sequence #${data.counter || 1})`);
       setTimeout(() => setLogSuccess(null), 4000);
       onRefresh?.();
     } catch (err) {
-      console.error(err);
+      // Save locally in IndexedDB outbox for store-and-forward mesh synchronization
+      await offlineStorage.queueOutboxAction('/api/actions/event', 'POST', {
+        node_id: selected.id,
+        entity_type: entityType,
+        entity_id: `${entityType}-${nameOrItem.toLowerCase().replace(/\s+/g, '-')}`,
+        operation: 'UPDATE',
+        payload,
+      });
+      if (entityType === 'person') {
+        await offlineStorage.addLocalVictim({
+          name: nameOrItem,
+          triage_color: statusOrUrgency === 'CRITICAL' ? 'RED' : statusOrUrgency === 'INJURED' ? 'YELLOW' : 'GREEN',
+          status: 'TRAPPED',
+          location: location,
+        });
+      } else {
+        await offlineStorage.addLocalIncident({
+          title: `${entityType.toUpperCase()}: ${nameOrItem}`,
+          category: 'SUPPLY_DEFICIT',
+          severity: statusOrUrgency === 'CRITICAL' ? 'CRITICAL' : 'HIGH',
+          status: 'OPEN',
+          location: location,
+          reported_by: selected.id,
+        });
+      }
+      setLogSuccess('Saved to offline IndexedDB outbox! Will auto-sync when mesh is reached.');
+      setTimeout(() => setLogSuccess(null), 5000);
+      onRefresh?.();
     }
   };
 

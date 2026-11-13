@@ -18,6 +18,8 @@ import { useSimulationSocket } from './hooks/useSimulationSocket';
 import { TerrainData, StationData, LinkData } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/LoginPage';
+import { NetworkStatusBar } from './components/NetworkStatusBar';
+import { offlineStorage } from './services/offlineStorage';
 
 const DEFAULT_STATIONS: Record<string, StationData> = {
   alpha: {
@@ -290,28 +292,62 @@ function DashboardContent() {
     }
   }, [wsStations]);
 
-  // Initial fetch for terrain, stations, and links
+  // Initial fetch for terrain, stations, and links with local storage fallback
   const refreshAll = () => {
     apiFetch('/api/terrain')
       .then((r) => r.json())
-      .then((d) => setTerrain(d))
-      .catch(() => {});
+      .then((d) => {
+        if (d && !d.offline && !d.error) {
+          setTerrain(d);
+          try {
+            localStorage.setItem('rescuenet_cache_terrain', JSON.stringify(d));
+          } catch {}
+        }
+      })
+      .catch(() => {
+        try {
+          const cached = localStorage.getItem('rescuenet_cache_terrain');
+          if (cached) setTerrain(JSON.parse(cached));
+        } catch {}
+      });
 
     apiFetch('/api/stations')
       .then((r) => r.json())
       .then((data: StationData[]) => {
-        const map: Record<string, StationData> = {};
-        data.forEach((s) => {
-          map[s.id] = s;
-        });
-        setStations(map);
+        if (Array.isArray(data)) {
+          const map: Record<string, StationData> = {};
+          data.forEach((s) => {
+            map[s.id] = s;
+          });
+          setStations(map);
+          try {
+            localStorage.setItem('rescuenet_cache_stations', JSON.stringify(map));
+          } catch {}
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        try {
+          const cached = localStorage.getItem('rescuenet_cache_stations');
+          if (cached) setStations(JSON.parse(cached));
+        } catch {}
+      });
 
     apiFetch('/api/links')
       .then((r) => r.json())
-      .then((data: LinkData[]) => setLinks(data))
-      .catch(() => {});
+      .then((data: LinkData[]) => {
+        if (Array.isArray(data)) {
+          setLinks(data);
+          try {
+            localStorage.setItem('rescuenet_cache_links', JSON.stringify(data));
+          } catch {}
+        }
+      })
+      .catch(() => {
+        try {
+          const cached = localStorage.getItem('rescuenet_cache_links');
+          if (cached) setLinks(JSON.parse(cached));
+        } catch {}
+      });
   };
 
   useEffect(() => {
@@ -363,11 +399,19 @@ function DashboardContent() {
   };
 
   const handleTriggerSOS = async (msg: string) => {
-    await apiFetch('/api/actions/sos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_id: 'alpha', message: msg, urgency: 'CRITICAL' }),
-    });
+    try {
+      const res = await apiFetch('/api/actions/sos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_id: 'alpha', message: msg, urgency: 'CRITICAL' }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+    } catch {
+      // Save locally in IndexedDB & queue in outbox for mesh synchronization
+      await offlineStorage.addLocalSOSAlert('alpha', msg);
+    }
     refreshAll();
   };
 
@@ -399,6 +443,9 @@ function DashboardContent() {
         onOpenDemo={() => setDemoOpen(true)}
         onTriggerSOS={handleTriggerSOS}
       />
+
+      {/* Visible Online / Offline Status Bar & IndexedDB Sync Queue */}
+      <NetworkStatusBar wsConnected={connected} />
 
       {/* Main Work Area: Compact Left Sidebar + Central Operational View */}
       <div className="flex-1 flex overflow-hidden">

@@ -22,6 +22,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 import { Map2DView } from './Map2DView';
+import { offlineStorage } from '../../services/offlineStorage';
 
 interface OverviewViewProps {
   metrics: LiveMetrics | null;
@@ -44,7 +45,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const [selectedStationTab, setSelectedStationTab] = useState<string>('alpha');
   const [syncing, setSyncing] = useState(false);
 
-  // Fetch recent events from stations for bottom timeline
+  // Fetch recent events from stations for bottom timeline with IndexedDB fallback
   const fetchRecentEvents = () => {
     fetch('/api/events?limit=8')
       .then((r) => r.json())
@@ -55,7 +56,26 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           setRecentEvents(data.events);
         }
       })
-      .catch(() => {});
+      .catch(async () => {
+        // Fallback to local IndexedDB events when offline
+        try {
+          const localIncidents = await offlineStorage.getIncidents();
+          if (localIncidents.length > 0) {
+            const mapped: EventRecord[] = localIncidents.slice(0, 8).map((inc, idx) => ({
+              event_id: inc.id,
+              node_id: inc.reported_by || 'local',
+              counter: idx + 1,
+              entity_type: 'incident',
+              entity_id: inc.id,
+              operation: 'CREATE',
+              timestamp: inc.created_at / 1000,
+              payload: { title: inc.title, severity: inc.severity, location: inc.location },
+              signature: 'offline-local-ed25519',
+            }));
+            setRecentEvents(mapped);
+          }
+        } catch {}
+      });
   };
 
   useEffect(() => {

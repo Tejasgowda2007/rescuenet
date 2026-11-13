@@ -293,6 +293,8 @@ class RescueNetNodeService:
 
         # 7. Start Async Background Loop reference
         self.async_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.telemetry_task: Optional[asyncio.Task] = None
+        self.is_closed = False
 
     def _setup_keyring(
         self,
@@ -394,6 +396,9 @@ class RescueNetNodeService:
 
     def close(self) -> None:
         """Clean shutdown of all node services."""
+        self.is_closed = True
+        if self.telemetry_task and not self.telemetry_task.done():
+            self.telemetry_task.cancel()
         if self.discovery:
             self.discovery.stop()
         self.gossip.stop()
@@ -432,12 +437,18 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
         init_admin_account()
         service.async_loop = asyncio.get_running_loop()
         # Launch periodic telemetry broadcast task
-        asyncio.create_task(telemetry_stream_worker())
+        service.telemetry_task = asyncio.create_task(telemetry_stream_worker())
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        service.is_closed = True
+        if service.telemetry_task and not service.telemetry_task.done():
+            service.telemetry_task.cancel()
 
     async def telemetry_stream_worker():
         """Periodically broadcasts telemetry to frontend every 1.5 seconds."""
-        while True:
-            try:
+        try:
+            while not getattr(service, "is_closed", False):
                 await asyncio.sleep(1.5)
                 # Compute telemetry snapshot
                 state = service.node.get_state()
@@ -480,10 +491,10 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
                     "peer_health": ph,
                 }
                 await ws_broadcaster.broadcast(msg)
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                pass
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
 
     # -------------------------------------------------------------
     # WEBSOCKET ENDPOINTS

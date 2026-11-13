@@ -3,7 +3,7 @@ import { Shield, Lock, User, Eye, EyeOff, AlertTriangle, Radio, Activity, CheckC
 import { useAuth } from '../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, enableOfflineEmergencySession } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -159,6 +159,22 @@ export const LoginPage: React.FC = () => {
                 )}
               </button>
             </form>
+
+            {/* Offline Emergency Access Option */}
+            <div className="mt-4 pt-4 border-t border-slate-800/60">
+              <button
+                type="button"
+                onClick={() => enableOfflineEmergencySession('RESPONDER')}
+                className="w-full py-2.5 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-cyan-300 border border-cyan-800/50 font-mono text-xs flex items-center justify-center gap-2 transition"
+                title="Direct access without network connectivity; saves data locally in IndexedDB"
+              >
+                <Radio className="w-3.5 h-3.5 text-cyan-400" />
+                <span>ENTER OFFLINE FIELD MODE (INDEXEDDB)</span>
+              </button>
+              <p className="text-[10px] text-center text-slate-500 mt-1.5 font-mono">
+                Zero network required &bull; Auto-syncs when mesh is reached
+              </p>
+            </div>
 
             {/* Tactical Security Verification Footer */}
             <div className="mt-8 pt-6 border-t border-slate-800/80 text-[11px] font-mono text-slate-500 space-y-2">

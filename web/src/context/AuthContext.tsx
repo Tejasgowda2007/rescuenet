@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   apiFetch: (url: string, options?: RequestInit) => Promise<Response>;
+  enableOfflineEmergencySession: (role?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,7 +23,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const stored = localStorage.getItem('rescuenet_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('rescuenet_token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -58,6 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setToken(null);
         setUser(null);
         localStorage.removeItem('rescuenet_token');
+        localStorage.removeItem('rescuenet_user');
       }
       return response;
     } catch (err) {
@@ -69,6 +78,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('rescuenet_token');
+      const storedUserStr = localStorage.getItem('rescuenet_user');
+
       if (!storedToken) {
         setIsLoading(false);
         return;
@@ -80,14 +91,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const data = await res.json();
           setUser(data.user);
           setToken(storedToken);
-        } else {
+          localStorage.setItem('rescuenet_user', JSON.stringify(data.user));
+        } else if (res.status === 401) {
           localStorage.removeItem('rescuenet_token');
+          localStorage.removeItem('rescuenet_user');
           setToken(null);
           setUser(null);
         }
       } catch (e) {
-        // Offline or connection failure; keep token in case it's local
-        console.warn('Authentication verify offline or unreachable', e);
+        // Network unreachable / offline mode:
+        // If a previously authenticated user exists in storage, preserve the offline session
+        if (storedUserStr) {
+          try {
+            const cachedUser = JSON.parse(storedUserStr);
+            setUser(cachedUser);
+            setToken(storedToken);
+            console.log('[Auth] Operating in offline mode with cached operator session:', cachedUser.username);
+          } catch {}
+        }
       } finally {
         setIsLoading(false);
       }
@@ -115,11 +136,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(receivedToken);
       setUser(data.user);
       localStorage.setItem('rescuenet_token', receivedToken);
+      localStorage.setItem('rescuenet_user', JSON.stringify(data.user));
 
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Unable to connect to RescueNet authentication service.' };
+      // Offline fallback: check if logging in with known cached operator offline
+      const storedUserStr = localStorage.getItem('rescuenet_user');
+      if (storedUserStr) {
+        try {
+          const cachedUser = JSON.parse(storedUserStr);
+          if (cachedUser.username === username.trim()) {
+            setUser(cachedUser);
+            return { success: true };
+          }
+        } catch {}
+      }
+      return { success: false, error: err.message || 'Unable to connect to RescueNet authentication service (Offline).' };
     }
+  };
+
+  const enableOfflineEmergencySession = (role: string = 'RESPONDER') => {
+    const offlineUser: User = {
+      id: `offline-operator-${Date.now()}`,
+      username: 'field-responder',
+      role: role.toUpperCase(),
+      full_name: 'Field Disaster Responder (Offline)',
+    };
+    const syntheticToken = `offline-token-${Date.now()}`;
+    setUser(offlineUser);
+    setToken(syntheticToken);
+    localStorage.setItem('rescuenet_token', syntheticToken);
+    localStorage.setItem('rescuenet_user', JSON.stringify(offlineUser));
   };
 
   const logout = async (): Promise<void> => {
@@ -131,17 +178,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(null);
       setUser(null);
       localStorage.removeItem('rescuenet_token');
+      localStorage.removeItem('rescuenet_user');
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, apiFetch }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, apiFetch, enableOfflineEmergencySession }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
