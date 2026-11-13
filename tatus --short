@@ -1,0 +1,456 @@
+RescueNet_Alpha/runtime/Lib/pydoc_data/topics.py:13004: leftover conflict marker
+RescueNet_Alpha/runtime/Lib/site-packages/anyio-4.15.1.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:4: trailing whitespace.
+[32m+[m[32mdocumentation is licensed as follows:[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:8: trailing whitespace.
+[32m+[m[32m    Permission is hereby granted, free of charge, to any person[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:9: trailing whitespace.
+[32m+[m[32m    obtaining a copy of this software and associated documentation[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:10: trailing whitespace.
+[32m+[m[32m    files (the "Software"), to deal in the Software without[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:11: trailing whitespace.
+[32m+[m[32m    restriction, including without limitation the rights to use,[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:12: trailing whitespace.
+[32m+[m[32m    copy, modify, merge, publish, distribute, sublicense, and/or[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:13: trailing whitespace.
+[32m+[m[32m    sell copies of the Software, and to permit persons to whom the[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:16: trailing whitespace.
+[32m+[m[32m    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:17: trailing whitespace.
+[32m+[m[32m    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:18: trailing whitespace.
+[32m+[m[32m    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:19: trailing whitespace.
+[32m+[m[32m    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:20: trailing whitespace.
+[32m+[m[32m    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:21: trailing whitespace.
+[32m+[m[32m    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:23: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/cffi/recompiler.py:1586: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/click-8.5.0.dist-info/METADATA:83: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/colorama/__init__.py:7: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/cryptography-50.0.2.dist-info/METADATA:111: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/fastapi-0.141.1.dist-info/entry_points.txt:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/h11-0.16.0.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/httptools-0.9.0.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/httptools-0.9.0.dist-info/licenses/vendor/http-parser/LICENSE-MIT:19: trailing whitespace.
+[32m+[m[32mIN THE SOFTWARE.[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/idna-3.19.dist-info/METADATA:209: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/idna-3.19.dist-info/entry_points.txt:3: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/iniconfig-2.3.1.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/networkx-3.7.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/networkx/algorithms/polynomials.py:84: space before tab in indent.
+[32m+[m[41m    [m	[32m   x^{k(G)} y^{l(G)}, & \text{if all edges are cut-edges or self-loops} \\[m
+RescueNet_Alpha/runtime/Lib/site-packages/networkx/algorithms/polynomials.py:222: space before tab in indent.
+[32m+[m[41m    [m	[32m   x^{n(G)}, & \text{if $e(G)=0$} \\[m
+RescueNet_Alpha/runtime/Lib/site-packages/networkx/conftest.py:3: leftover conflict marker
+RescueNet_Alpha/runtime/Lib/site-packages/networkx/readwrite/tests/test_p2g.py:77: trailing whitespace.
+[32m+[m[32m1[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/networkx/readwrite/tests/test_p2g.py:79: trailing whitespace.
+[32m+[m[32m2[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/METADATA:124: trailing whitespace.
+[32m+[m[32mFor more information about the ways you can contribute to NumPy, visit [our website](https://numpy.org/contribute/).[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/entry_points.txt:13: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/LICENSE.txt:914: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/LICENSE.md:69: trailing whitespace.
+[32m+[m[32mMany parts of this module have been derived from original sources,[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/LICENSE.md:70: trailing whitespace.
+[32m+[m[32moften the algorithm's designer. Component licenses are located with[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:9: trailing whitespace.
+[32m+[m[32mPermission is hereby granted, free of charge, to any person obtaining[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:10: trailing whitespace.
+[32m+[m[32ma copy of this software and associated documentation files (the "Software"),[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:11: trailing whitespace.
+[32m+[m[32mto deal in the Software without restriction, including without limitation[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:14: trailing whitespace.
+[32m+[m[32mThe above copyright notice and this permission notice shall be included in[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:17: trailing whitespace.
+[32m+[m[32mTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:18: trailing whitespace.
+[32m+[m[32mIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:19: trailing whitespace.
+[32m+[m[32mFOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:20: trailing whitespace.
+[32m+[m[32mCOPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md:21: trailing whitespace.
+[32m+[m[32mIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/common/block.f:5: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/crackfortran/common_with_division.f:5: trailing whitespace.
+[32m+[m[32mc     crackfortran fails to parse this[m[41m  [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/crackfortran/common_with_division.f:11: trailing whitespace.
+[32m+[m[32mc     crackfortran fails to parse this correctly[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/crackfortran/common_with_division.f:13: trailing whitespace.
+[32m+[m[41m      [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/crackfortran/common_with_division.f:15: trailing whitespace.
+[32m+[m[41m      [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/crackfortran/gh22648.pyf:5: trailing whitespace.
+[32m+[m[32m       end block data[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/crackfortran/gh22648.pyf:6: trailing whitespace.
+[32m+[m[32m    end interface[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/kind/foo.f90:5: trailing whitespace.
+[32m+[m[41m  [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/parameter/constant_non_compound.f90:2: trailing whitespace.
+[32m+[m[32m! Specifically that types of constants without[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/parameter/constant_non_compound.f90:4: trailing whitespace.
+[32m+[m[32m! adapted Gibbs iteration code from pymc[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/parameter/constant_non_compound.f90:5: trailing whitespace.
+[32m+[m[32m! for this test case[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/parameter/constant_real.f90:23: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/f2py/tests/src/string/char.f90:29: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/LICENSE.md:69: trailing whitespace.
+[32m+[m[32mMany parts of this module have been derived from original sources,[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/LICENSE.md:70: trailing whitespace.
+[32m+[m[32moften the algorithm's designer. Component licenses are located with[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:1: trailing whitespace.
+[32m+[m[32mfrom libc.stdint cimport (uint8_t, uint16_t, uint32_t, uint64_t,[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:2: trailing whitespace.
+[32m+[m[32m                          int8_t, int16_t, int32_t, int64_t, intptr_t)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:3: trailing whitespace.
+[32m+[m[32mimport numpy as np[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:4: trailing whitespace.
+[32m+[m[32mcimport numpy as np[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:5: trailing whitespace.
+[32m+[m[32mctypedef np.npy_bool bool_t[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:6: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:7: trailing whitespace.
+[32m+[m[32mfrom numpy.random cimport bitgen_t[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:8: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:9: trailing whitespace.
+[32m+[m[32mcdef inline uint64_t _gen_mask(uint64_t max_val) noexcept nogil:[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:10: trailing whitespace.
+[32m+[m[32m    """Mask generator for use in bounded random numbers"""[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:11: trailing whitespace.
+[32m+[m[32m    # Smallest bit mask >= max[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:12: trailing whitespace.
+[32m+[m[32m    cdef uint64_t mask = max_val[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:13: trailing whitespace.
+[32m+[m[32m    mask |= mask >> 1[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:14: trailing whitespace.
+[32m+[m[32m    mask |= mask >> 2[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:15: trailing whitespace.
+[32m+[m[32m    mask |= mask >> 4[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:16: trailing whitespace.
+[32m+[m[32m    mask |= mask >> 8[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:17: trailing whitespace.
+[32m+[m[32m    mask |= mask >> 16[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:18: trailing whitespace.
+[32m+[m[32m    mask |= mask >> 32[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:19: trailing whitespace.
+[32m+[m[32m    return mask[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:20: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:21: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:22: trailing whitespace.
+[32m+[m[32mcdef object _rand_uint64(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:23: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:24: trailing whitespace.
+[32m+[m[32mcdef object _rand_uint32(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:25: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:26: trailing whitespace.
+[32m+[m[32mcdef object _rand_uint16(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:27: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:28: trailing whitespace.
+[32m+[m[32mcdef object _rand_uint8(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:29: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:30: trailing whitespace.
+[32m+[m[32mcdef object _rand_bool(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:31: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:32: trailing whitespace.
+[32m+[m[32mcdef object _rand_int64(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:33: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:34: trailing whitespace.
+[32m+[m[32mcdef object _rand_int32(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:35: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:36: trailing whitespace.
+[32m+[m[32mcdef object _rand_int16(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:37: trailing whitespace.
+[32m+[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_bounded_integers.pxd:38: trailing whitespace.
+[32m+[m[32mcdef object _rand_int8(object low, object high, object size, bint use_masked, bint closed, bitgen_t *state, object lock)[m[41m[m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/_examples/cython/extending_distributions.pyx:117: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/c_distributions.pxd:34: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/c_distributions.pxd:41: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/runtime/Lib/site-packages/numpy/random/c_distributions.pxd:119: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/packaging-26.3.dist-info/METADATA:112: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/pluggy-1.7.0.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:9: trailing whitespace.
+[32m+[m[32m* Redistributions of source code must retain the above copyright notice, this[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:11: trailing whitespace.
+[32m+[m[32m* Redistributions in binary form must reproduce the above copyright notice,[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:12: trailing whitespace.
+[32m+[m[32m  this list of conditions and the following disclaimer in the documentation[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:14: trailing whitespace.
+[32m+[m[32m* Neither the name of the copyright holder nor the names of its contributors may[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:15: trailing whitespace.
+[32m+[m[32m  be used to endorse or promote products derived from this software without[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:18: trailing whitespace.
+[32m+[m[32mTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:19: trailing whitespace.
+[32m+[m[32mANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:20: trailing whitespace.
+[32m+[m[32mWARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:21: trailing whitespace.
+[32m+[m[32mDISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:22: trailing whitespace.
+[32m+[m[32mLIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:23: trailing whitespace.
+[32m+[m[32mCONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:24: trailing whitespace.
+[32m+[m[32mGOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:25: trailing whitespace.
+[32m+[m[32mHOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pycparser-3.12.dist-info/licenses/LICENSE:26: trailing whitespace.
+[32m+[m[32mLIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT[m[41m [m
+RescueNet_Alpha/runtime/Lib/site-packages/pydantic_core-2.46.5.dist-info/METADATA:173: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/pytest-9.1.1.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/simpy-4.1.2.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/typing_extensions-4.16.0.dist-info/METADATA:73: new blank line at EOF.
+RescueNet_Alpha/runtime/Lib/site-packages/websockets-17.2.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Alpha/src/crypto/peer_manifest.py:55: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/crypto/peer_manifest.py:61: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/crypto/peer_manifest.py:66: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/crypto/peer_manifest.py:71: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/crypto/peer_manifest.py:77: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/crypto/signatures.py:109: new blank line at EOF.
+RescueNet_Alpha/src/ui/controller.py:50: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/ui/controller.py:63: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/ui/controller.py:248: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/ui/controller.py:277: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/src/ui/controller.py:407: trailing whitespace.
+[32m+[m[41m            [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:394: trailing whitespace.
+[32m+[m	[32m#if defined( USE_CLEARCOAT )[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:397: trailing whitespace.
+[32m+[m	[32m#if defined( USE_SHEEN )[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:882: trailing whitespace.
+[32m+[m[41m		[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1526: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1527: space before tab in indent.
+[32m+[m[41m [m		[32msheenSpecularDirect += irradiance * BRDF_Sheen( directLight.direction, geometryViewDir, geometryNormal, material.sheenColor, material.sheenRoughness );[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1528: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1529: space before tab in indent.
+[32m+[m[41m [m		[32mfloat sheenAlbedoV = IBLSheenBRDF( geometryNormal, geometryViewDir, material.sheenRoughness );[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1530: space before tab in indent.
+[32m+[m[41m [m		[32mfloat sheenAlbedoL = IBLSheenBRDF( geometryNormal, directLight.direction, material.sheenRoughness );[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1531: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1532: space before tab in indent.
+[32m+[m[41m [m		[32mfloat sheenEnergyComp = 1.0 - max3( material.sheenColor ) * max( sheenAlbedoV, sheenAlbedoL );[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1533: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1534: space before tab in indent.
+[32m+[m[41m [m		[32mirradiance *= sheenEnergyComp;[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1535: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1536: space before tab in indent.
+[32m+[m[41m [m	[32m#endif[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:1555: space before tab in indent.
+[32m+[m[41m [m	[32m#endif[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:2010: trailing whitespace.
+[32m+[m[41m	[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:2020: trailing whitespace.
+[32m+[m[41m	[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:2159: trailing whitespace.
+[32m+[m[41m				[m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:3700: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:3702: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/src/web/dist/assets/index-DUt5XKp8.js:3703: space before tab in indent.
+[32m+[m[41m [m	[32m#endif[m
+RescueNet_Alpha/src/web/dist/index.html:1: trailing whitespace.
+[32m+[m[32m<!doctype html>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:2: trailing whitespace.
+[32m+[m[32m<html lang="en" class="dark">[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:3: trailing whitespace.
+[32m+[m[32m  <head>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:4: trailing whitespace.
+[32m+[m[32m    <meta charset="UTF-8" />[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:5: trailing whitespace.
+[32m+[m[32m    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338bdf8'><circle cx='12' cy='12' r='10'/></svg>" />[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:6: trailing whitespace.
+[32m+[m[32m    <meta name="viewport" content="width=device-width, initial-scale=1.0" />[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:7: trailing whitespace.
+[32m+[m[32m    <title>RESCUENET FIELDMESH — Command Center</title>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:8: trailing whitespace.
+[32m+[m[32m    <link rel="preconnect" href="https://fonts.googleapis.com">[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:9: trailing whitespace.
+[32m+[m[32m    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:10: trailing whitespace.
+[32m+[m[32m    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:13: trailing whitespace.
+[32m+[m[32m  </head>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:14: trailing whitespace.
+[32m+[m[32m  <body class="bg-[#070D18] text-slate-100 antialiased font-['Plus_Jakarta_Sans',sans-serif] overflow-x-hidden selection:bg-blue-600 selection:text-white">[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:15: trailing whitespace.
+[32m+[m[32m    <div id="root"></div>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:16: trailing whitespace.
+[32m+[m[32m  </body>[m[41m[m
+RescueNet_Alpha/src/web/dist/index.html:17: trailing whitespace.
+[32m+[m[32m</html>[m[41m[m
+RescueNet_Alpha/tests/test_phase1_security.py:489: new blank line at EOF.
+RescueNet_Alpha/tests/test_resqmesh.py:34: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:92: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:95: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:103: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:106: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:110: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:113: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:120: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:124: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/tests/test_resqmesh.py:127: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/ui/controller.py:50: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/ui/controller.py:63: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/ui/controller.py:248: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/ui/controller.py:277: trailing whitespace.
+[32m+[m[41m    [m
+RescueNet_Alpha/ui/controller.py:407: trailing whitespace.
+[32m+[m[41m            [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:394: trailing whitespace.
+[32m+[m	[32m#if defined( USE_CLEARCOAT )[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:397: trailing whitespace.
+[32m+[m	[32m#if defined( USE_SHEEN )[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:882: trailing whitespace.
+[32m+[m[41m		[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1526: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1527: space before tab in indent.
+[32m+[m[41m [m		[32msheenSpecularDirect += irradiance * BRDF_Sheen( directLight.direction, geometryViewDir, geometryNormal, material.sheenColor, material.sheenRoughness );[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1528: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1529: space before tab in indent.
+[32m+[m[41m [m		[32mfloat sheenAlbedoV = IBLSheenBRDF( geometryNormal, geometryViewDir, material.sheenRoughness );[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1530: space before tab in indent.
+[32m+[m[41m [m		[32mfloat sheenAlbedoL = IBLSheenBRDF( geometryNormal, directLight.direction, material.sheenRoughness );[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1531: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1532: space before tab in indent.
+[32m+[m[41m [m		[32mfloat sheenEnergyComp = 1.0 - max3( material.sheenColor ) * max( sheenAlbedoV, sheenAlbedoL );[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1533: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1534: space before tab in indent.
+[32m+[m[41m [m		[32mirradiance *= sheenEnergyComp;[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1535: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1536: space before tab in indent.
+[32m+[m[41m [m	[32m#endif[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:1555: space before tab in indent.
+[32m+[m[41m [m	[32m#endif[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:2010: trailing whitespace.
+[32m+[m[41m	[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:2020: trailing whitespace.
+[32m+[m[41m	[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:2159: trailing whitespace.
+[32m+[m[41m				[m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:3700: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:3702: trailing whitespace.
+[32m+[m[41m [m
+RescueNet_Alpha/web/dist/assets/index-DUt5XKp8.js:3703: space before tab in indent.
+[32m+[m[41m [m	[32m#endif[m
+RescueNet_Alpha/web/dist/index.html:1: trailing whitespace.
+[32m+[m[32m<!doctype html>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:2: trailing whitespace.
+[32m+[m[32m<html lang="en" class="dark">[m[41m[m
+RescueNet_Alpha/web/dist/index.html:3: trailing whitespace.
+[32m+[m[32m  <head>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:4: trailing whitespace.
+[32m+[m[32m    <meta charset="UTF-8" />[m[41m[m
+RescueNet_Alpha/web/dist/index.html:5: trailing whitespace.
+[32m+[m[32m    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338bdf8'><circle cx='12' cy='12' r='10'/></svg>" />[m[41m[m
+RescueNet_Alpha/web/dist/index.html:6: trailing whitespace.
+[32m+[m[32m    <meta name="viewport" content="width=device-width, initial-scale=1.0" />[m[41m[m
+RescueNet_Alpha/web/dist/index.html:7: trailing whitespace.
+[32m+[m[32m    <title>RESCUENET FIELDMESH — Command Center</title>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:8: trailing whitespace.
+[32m+[m[32m    <link rel="preconnect" href="https://fonts.googleapis.com">[m[41m[m
+RescueNet_Alpha/web/dist/index.html:9: trailing whitespace.
+[32m+[m[32m    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:10: trailing whitespace.
+[32m+[m[32m    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">[m[41m[m
+RescueNet_Alpha/web/dist/index.html:13: trailing whitespace.
+[32m+[m[32m  </head>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:14: trailing whitespace.
+[32m+[m[32m  <body class="bg-[#070D18] text-slate-100 antialiased font-['Plus_Jakarta_Sans',sans-serif] overflow-x-hidden selection:bg-blue-600 selection:text-white">[m[41m[m
+RescueNet_Alpha/web/dist/index.html:15: trailing whitespace.
+[32m+[m[32m    <div id="root"></div>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:16: trailing whitespace.
+[32m+[m[32m  </body>[m[41m[m
+RescueNet_Alpha/web/dist/index.html:17: trailing whitespace.
+[32m+[m[32m</html>[m[41m[m
+RescueNet_Beta/runtime/Lib/pydoc_data/topics.py:13004: leftover conflict marker
+RescueNet_Beta/runtime/Lib/site-packages/anyio-4.15.1.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/WHEEL:5: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:4: trailing whitespace.
+[32m+[m[32mdocumentation is licensed as follows:[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:8: trailing whitespace.
+[32m+[m[32m    Permission is hereby granted, free of charge, to any person[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:9: trailing whitespace.
+[32m+[m[32m    obtaining a copy of this software and associated documentation[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:10: trailing whitespace.
+[32m+[m[32m    files (the "Software"), to deal in the Software without[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:11: trailing whitespace.
+[32m+[m[32m    restriction, including without limitation the rights to use,[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:12: trailing whitespace.
+[32m+[m[32m    copy, modify, merge, publish, distribute, sublicense, and/or[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:13: trailing whitespace.
+[32m+[m[32m    sell copies of the Software, and to permit persons to whom the[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:16: trailing whitespace.
+[32m+[m[32m    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:17: trailing whitespace.
+[32m+[m[32m    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:18: trailing whitespace.
+[32m+[m[32m    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:19: trailing whitespace.
+[32m+[m[32m    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:20: trailing whitespace.
+[32m+[m[32m    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:21: trailing whitespace.
+[32m+[m[32m    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER[m[41m [m
+RescueNet_Beta/runtime/Lib/site-packages/cffi-2.1.1.dist-info/licenses/LICENSE:23: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/cffi/recompiler.py:1586: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/click-8.5.0.dist-info/METADATA:83: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/colorama/__init__.py:7: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/cryptography-50.0.2.dist-info/METADATA:111: new blank line at EOF.
+RescueNet_Beta/runtime/Lib/site-packages/fastapi-0.141.1.dist-info/entry_points.txt:5: new blank line at EOF.
+RescueNet_Beta/r

@@ -1,0 +1,13 @@
+{
+  "node_id": "gamma-mountain",
+  "name": "Gamma Mountain Relay",
+  "role": "Mountain Shelter and Relay Station",
+  "host": "0.0.0.0",
+  "tcp_port": 8001,
+  "web_port": 8000,
+  "discovery_port": 8002,
+  "enable_discovery": true,
+  "db_path": "data/gamma-mountain.db",
+  "security_dir": "security",
+  "strict_security": true
+}

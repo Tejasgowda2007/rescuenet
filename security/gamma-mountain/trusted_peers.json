@@ -1,0 +1,20 @@
+{
+  "alpha-harbor": {
+    "alias": "Harbor Command Center",
+    "fingerprint": "SHA256:A7:89:36:E8:7F:3A:21:E1:3B:09:D8:DE:7B:E6:1D:01:04:89:E3:30:DC:38:6F:39:79:52:89:D0:B4:9C:93:FE",
+    "public_key": "9243b8fe7237c2e77fa5a902d071b53644fab0db07c7fbb71f60564f28d8ee70",
+    "role": "coordinator"
+  },
+  "beta-hospital": {
+    "alias": "Field Hospital Triage",
+    "fingerprint": "SHA256:5B:F7:AA:97:A0:B1:82:B9:70:04:16:CD:1D:FE:95:11:AC:78:17:FA:36:91:E4:AB:F9:28:50:07:32:1E:8B:14",
+    "public_key": "9fc8861367830fc0384a6b977d4c98b0225a2661ef10fb9dd5e404830738e19b",
+    "role": "medical"
+  },
+  "gamma-mountain": {
+    "alias": "Mountain Shelter Relay",
+    "fingerprint": "SHA256:EC:7E:E7:DF:42:00:E2:12:A6:73:93:2A:0C:D1:D3:B0:B6:5D:85:FF:DA:64:C2:B3:CF:C1:4D:F4:24:73:00:AD",
+    "public_key": "0c20f46d09ee63f675e8b92c4f7cfc97c9542c4c49b8851d3c07fabffbe3efc1",
+    "role": "relay"
+  }
+}

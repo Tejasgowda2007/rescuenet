@@ -16,7 +16,8 @@ class ValidationError(Exception):
 
 ALLOWED_ENTITY_TYPES = {
     "shelter", "supply", "supply_intent", "need", "person",
-    "scarce_item", "security",
+    "scarce_item", "security", "incident", "victim",
+    "rescuer", "alert", "chat", "attachment",
 }
 
 ALLOWED_OPERATIONS = {
@@ -25,7 +26,8 @@ ALLOWED_OPERATIONS = {
     "REGISTER_TOKEN", "REQUEST_ALLOCATION", "CONFIRM_ALLOCATION",
     "TRANSFER_TOKEN", "RELEASE_ITEM", "RESOLVE_CONFLICT",
     "INIT_POOL", "RECORD_INTENT", "RESOLVE_COLLISION",
-    "REVOKE_NODE",
+    "REVOKE_NODE", "ASSIGN_TEAM", "CLOSE_INCIDENT", "UPDATE_TRIAGE",
+    "ACKNOWLEDGE", "ASSIGN_MISSION",
 }
 
 REQUIRED_PAYLOAD_FIELDS = {
@@ -33,6 +35,8 @@ REQUIRED_PAYLOAD_FIELDS = {
     "supply": {"item_name", "total_quantity"},
     "need": {"item"},
     "person": {"name"},
+    "incident": {"title"},
+    "victim": {"name"},
 }
 
 
@@ -58,11 +62,11 @@ def validate_event(event: Any) -> None:
     payload = getattr(event, "payload", None)
     if not isinstance(payload, dict):
         raise ValidationError("payload must be a dict")
-    # payload size guard (weak links / storage)
+    # payload size guard (supports offline photo attachments up to 10MB)
     import json
     size = len(json.dumps(payload, sort_keys=True).encode("utf-8"))
-    if size > 65536:
-        raise ValidationError(f"payload too large: {size} bytes (max 65536)")
+    if size > 10 * 1024 * 1024:
+        raise ValidationError(f"payload too large: {size} bytes (max 10MB)")
     # Required-field checks are intentionally lenient to preserve backward
     # compatibility with existing events and tests; payload size/type checks above
     # still guard against malformed or hostile data.

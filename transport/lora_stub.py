@@ -69,7 +69,7 @@ class LoRaStubTransport(Transport):
         3. Transmits over serial UART (AT+SEND or raw packet mode) to SX1262 / ESP32.
         4. Waits for peer ACK or delta sync reply packet on the configured RF channel.
         """
-        raw_bytes = json.dumps(message.to_dict()).encode("utf-8")
+        raw_bytes = message.to_bytes()
         self._total_bytes += len(raw_bytes)
         self._total_messages += 1
 

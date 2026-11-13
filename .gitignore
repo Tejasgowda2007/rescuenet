@@ -5,3 +5,33 @@ __pycache__/
 .venv/
 .agents/
 .claude/
+
+# RescueNet local databases
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Secrets and private keys
+.env
+.env.*
+*.pem
+*.key
+id_ed25519*
+
+# Local environments
+venv/
+env/
+node_modules/
+web/node_modules/
+web/dist/
+
+# Deployment archives and backups
+*.zip
+*.phase0_backup
+*.phase1_backup
+
+# Exclude copied Python environments
+RescueNet_*/runtime/
+**/site-packages/

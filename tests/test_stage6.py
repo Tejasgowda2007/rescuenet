@@ -36,8 +36,9 @@ def test_field_encryption_aes_gcm_roundtrip():
 
     # Tamper with ciphertext -> must fail GCM authentication tag
     tampered_envelope = dict(envelope)
-    # Corrupt one hex byte
-    tampered_envelope["data"] = "ff" + envelope["data"][2:]
+    # Corrupt one hex byte (guaranteed mismatch)
+    corrupted_byte = "00" if envelope["data"].startswith("ff") else "ff"
+    tampered_envelope["data"] = corrupted_byte + envelope["data"][2:]
     with pytest.raises(CryptoError):
         FieldEncryptor.decrypt_value(tampered_envelope, passphrase, salt)
 

@@ -58,6 +58,12 @@ class StateProjector:
             "need": {},
             "person": {},
             "scarce_item": {},
+            "incident": {},
+            "victim": {},
+            "rescuer": {},
+            "alert": {},
+            "chat": {},
+            "attachment": {},
         }
 
         # Step 3: Apply each event in order
@@ -290,7 +296,71 @@ class StateProjector:
             return
 
         # -------------------------------------------------------------
-        # 3. CONFLICT RESOLUTION (Human Triage)
+        # 3. INCIDENT OPERATIONS
+        # -------------------------------------------------------------
+        if etype == "incident" and op == "ASSIGN_TEAM":
+            if eid in bucket:
+                record = bucket[eid]
+                team = event.payload.get("team")
+                if team:
+                    if "assigned_teams" not in record:
+                        record["assigned_teams"] = []
+                    if team not in record["assigned_teams"]:
+                        record["assigned_teams"].append(team)
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+                record["_event_count"] = record.get("_event_count", 0) + 1
+            return
+
+        elif etype == "incident" and op == "CLOSE_INCIDENT":
+            if eid in bucket:
+                record = bucket[eid]
+                record["status"] = "RESOLVED"
+                record["_resolved_by"] = event.node_id
+                record["_resolution_notes"] = event.payload.get("resolution_notes", "")
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+                record["_event_count"] = record.get("_event_count", 0) + 1
+            return
+
+        # -------------------------------------------------------------
+        # 4. EMERGENCY ALERTS & RESCUERS
+        # -------------------------------------------------------------
+        if etype == "alert" and op == "ACKNOWLEDGE":
+            if eid in bucket:
+                record = bucket[eid]
+                record["acknowledged"] = True
+                record["acknowledged_by"] = event.node_id
+                record["acknowledged_at"] = event.timestamp
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+                record["_event_count"] = record.get("_event_count", 0) + 1
+            return
+
+        elif etype == "alert" and op == "RESOLVE":
+            if eid in bucket:
+                record = bucket[eid]
+                record["status"] = "RESOLVED"
+                record["resolved"] = True
+                record["resolved_by"] = event.node_id
+                record["resolved_at"] = event.timestamp
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+                record["_event_count"] = record.get("_event_count", 0) + 1
+            return
+
+        if etype == "rescuer" and op == "ASSIGN_MISSION":
+            if eid in bucket:
+                record = bucket[eid]
+                record["assigned_mission"] = event.payload.get("mission", "")
+                record["status"] = "DEPLOYED"
+                record["_last_updated_at"] = event.timestamp
+                record["_last_updated_by"] = event.node_id
+                record["_event_count"] = record.get("_event_count", 0) + 1
+            return
+
+        # -------------------------------------------------------------
+        # 5. CONFLICT RESOLUTION (Human Triage)
         # -------------------------------------------------------------
         if op == "RESOLVE_CONFLICT":
             if eid in bucket:
@@ -326,7 +396,7 @@ class StateProjector:
             else:
                 self._apply_update(bucket[eid], event)
 
-        elif op == "UPDATE":
+        elif op in ("UPDATE", "UPDATE_TRIAGE"):
             if eid not in bucket:
                 bucket[eid] = {
                     **event.payload,
@@ -369,20 +439,32 @@ class StateProjector:
         """
         new_status = event.payload.get("status")
         current_status = current_record.get("status")
+        new_triage = event.payload.get("triage_category")
+        current_triage = current_record.get("triage_category")
 
-        if (
+        has_status_conflict = (
             new_status is not None
             and current_status is not None
             and new_status != current_status
             and event.node_id != current_record.get("_last_updated_by")
-        ):
+        )
+        has_triage_conflict = (
+            new_triage is not None
+            and current_triage is not None
+            and new_triage != current_triage
+            and event.node_id != current_record.get("_last_updated_by")
+        )
+
+        if has_status_conflict or has_triage_conflict:
             conflict_entry = {
                 "event_id": event.event_id,
                 "node_id": event.node_id,
                 "timestamp": event.timestamp,
                 "conflicting_status": new_status,
                 "previous_status": current_status,
-                "reason": "Concurrent or alternate status reported from different node",
+                "conflicting_triage": new_triage,
+                "previous_triage": current_triage,
+                "reason": "Concurrent or alternate status/triage reported from different node",
             }
             if "conflicts" not in current_record:
                 current_record["conflicts"] = []

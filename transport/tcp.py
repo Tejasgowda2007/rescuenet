@@ -25,6 +25,14 @@ from typing import Dict, Tuple, Callable, Optional
 from .base import Transport, TransportMessage
 
 
+DEFAULT_MAX_FRAME_SIZE = 10 * 1024 * 1024  # 10 MB maximum allowed frame size
+
+
+class FrameTooLargeError(ConnectionError):
+    """Raised when an incoming TCP frame exceeds the maximum allowed size limit."""
+    pass
+
+
 def recv_exact(sock: socket.socket, num_bytes: int) -> bytes:
     """
     Read exactly num_bytes from a TCP stream.
@@ -52,14 +60,17 @@ class TCPTransport(Transport):
         host: str = "127.0.0.1",
         port: int = 0,  # Port 0 binds to any available ephemeral port
         timeout: float = 3.0,
+        max_frame_size: int = DEFAULT_MAX_FRAME_SIZE,
     ) -> None:
         self.node_id = node_id
         self.host = host
         self.timeout = timeout
+        self.max_frame_size = max_frame_size
         self.handler: Optional[Callable[[TransportMessage], Optional[TransportMessage]]] = None
 
         # Peer directory: {peer_node_id: (ip_address, port)}
         self.peers: Dict[str, Tuple[str, int]] = {}
+        self._peer_last_seen: Dict[str, float] = {}
 
         # Wire statistics
         self._total_bytes_transferred: int = 0
@@ -126,6 +137,10 @@ class TCPTransport(Transport):
             # Step 1: Read 4-byte length prefix
             header_bytes = recv_exact(conn, 4)
             msg_length = struct.unpack("!I", header_bytes)[0]
+            if msg_length > self.max_frame_size:
+                raise FrameTooLargeError(
+                    f"Frame size {msg_length} bytes exceeds maximum allowed limit {self.max_frame_size} bytes"
+                )
 
             # Step 2: Read message payload
             payload_bytes = recv_exact(conn, msg_length)
@@ -135,6 +150,8 @@ class TCPTransport(Transport):
                 self._total_messages_sent += 1
 
             in_msg = TransportMessage.from_bytes(payload_bytes)
+            with self._lock:
+                self._peer_last_seen[in_msg.sender_id] = time.time()
 
             # Step 3: Invoke node protocol handler
             response_msg: Optional[TransportMessage] = None
@@ -193,6 +210,10 @@ class TCPTransport(Transport):
             # Read response
             resp_header = recv_exact(client_sock, 4)
             resp_len = struct.unpack("!I", resp_header)[0]
+            if resp_len > self.max_frame_size:
+                raise FrameTooLargeError(
+                    f"Response frame size {resp_len} bytes exceeds maximum allowed limit {self.max_frame_size} bytes"
+                )
 
             if resp_len == 0:
                 return None
@@ -202,6 +223,7 @@ class TCPTransport(Transport):
             with self._lock:
                 self._total_bytes_transferred += 4 + resp_len
                 self._total_messages_sent += 1
+                self._peer_last_seen[recipient_id] = time.time()
 
             return TransportMessage.from_bytes(resp_bytes)
 
@@ -221,6 +243,21 @@ class TCPTransport(Transport):
                 "total_bytes": self._total_bytes_transferred,
                 "total_messages": self._total_messages_sent,
             }
+
+    def get_peer_info(self) -> Dict[str, Dict[str, Any]]:
+        """Return connected peer directory with connectivity and last seen timestamps."""
+        now = time.time()
+        with self._lock:
+            info = {}
+            for pid, (h, p) in self.peers.items():
+                last_s = self._peer_last_seen.get(pid, 0.0)
+                info[pid] = {
+                    "host": h,
+                    "port": p,
+                    "last_seen": last_s,
+                    "is_online": (now - last_s < 15.0) if last_s > 0 else False,
+                }
+            return info
 
     def reset_stats(self) -> None:
         """Reset byte statistics."""

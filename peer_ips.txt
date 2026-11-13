@@ -1,0 +1,16 @@
+# RescueNet Peer IP Fallback Configuration
+# ===============================================
+# This file is automatically read on startup.
+# If your local Wi-Fi router or hotspot supports UDP broadcast,
+# peers are discovered automatically (zero configuration).
+#
+# If your router has "Client Isolation" or "AP Isolation" enabled,
+# specify the other laptops' local IPv4 addresses below:
+#
+# Format: <node_id>=<ip_address>:<tcp_port>
+# Default TCP sync port is 8001.
+#
+# Examples:
+# alpha-harbor=192.168.1.100:8001
+# beta-hospital=192.168.1.101:8001
+# gamma-mountain=192.168.1.102:8001

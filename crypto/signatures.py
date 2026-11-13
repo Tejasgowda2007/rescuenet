@@ -83,3 +83,27 @@ class Signer:
             return True
         except (InvalidSignature, ValueError):
             return False
+
+    @staticmethod
+    def calculate_fingerprint(public_key_hex: str) -> str:
+        """
+        Calculate full 32-byte SHA-256 fingerprint: SHA256:XX:XX:...:XX.
+        """
+        import hashlib
+        pub_bytes = bytes.fromhex(public_key_hex.strip())
+        digest = hashlib.sha256(pub_bytes).hexdigest().upper()
+        chunks = [digest[i:i + 2] for i in range(0, 64, 2)]
+        return "SHA256:" + ":".join(chunks)
+
+    @staticmethod
+    def validate_public_key(public_key_hex: str) -> bool:
+        """Check if string is a valid 32-byte Ed25519 public key in hex."""
+        try:
+            if not isinstance(public_key_hex, str) or len(public_key_hex.strip()) != 64:
+                return False
+            raw = bytes.fromhex(public_key_hex.strip())
+            ed25519.Ed25519PublicKey.from_public_bytes(raw)
+            return True
+        except Exception:
+            return False
+

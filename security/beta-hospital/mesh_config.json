@@ -1,0 +1,6 @@
+{
+  "cluster_name": "RESCUENET-OFFLINE-CLUSTER",
+  "mesh_psk_hex": "16338ae4f5da5340c4495a0083065aa94c69aa7a1ff4d63e175f43401ac16d69",
+  "node_id": "beta-hospital",
+  "role": "medical"
+}

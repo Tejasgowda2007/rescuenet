@@ -43,7 +43,12 @@ class SQLiteEventStore:
         """
         self.db_path = db_path
         # Design Decision: check_same_thread=False allows sharing across simulator tasks or UI threads
-        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
+        try:
+            self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
+        except sqlite3.OperationalError:
+            # Fallback to in-memory store if path is unwritable
+            self.db_path = ":memory:"
+            self.conn = sqlite3.connect(":memory:", check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
         # Durability + concurrency hardening
         self._lock = threading.RLock()
@@ -211,13 +216,38 @@ class SQLiteEventStore:
         """, (entity_type, entity_id))
         return [self._row_to_event(row) for row in cur.fetchall()]
 
-    def get_version_vector(self) -> Dict[str, int]:
+    def get_contiguous_high_water_mark(self, node_id: str) -> int:
         """
-        Compute the local version vector: {node_id: max_counter_seen}.
-        Design Decision:
-        Version vectors summarize what this node knows about every peer in O(N_peers) time.
-        Used directly in anti-entropy sync (Stage 2).
+        Compute the Contiguous High-Water Mark (CHWM) for a given node_id.
+        Starting from counter 1, returns the highest consecutive counter logged with zero missing gaps.
+        Returns 0 if counter 1 is missing or no events exist for this node.
         """
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT counter FROM events WHERE node_id = ? ORDER BY counter ASC",
+            (node_id,)
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+        expected = 1
+        for row in rows:
+            c = row["counter"]
+            if c == expected:
+                expected += 1
+            elif c > expected:
+                break
+        return expected - 1
+
+    def get_max_counter(self, node_id: str) -> int:
+        """Return the highest counter seen for this node (may exceed CHWM if gaps exist)."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT MAX(counter) as max_c FROM events WHERE node_id = ?", (node_id,))
+        row = cur.fetchone()
+        return int(row["max_c"]) if row and row["max_c"] is not None else 0
+
+    def get_max_version_vector(self) -> Dict[str, int]:
+        """Compute the raw maximum counter version vector {node_id: max_counter}."""
         cur = self.conn.cursor()
         cur.execute("""
             SELECT node_id, MAX(counter) as max_counter
@@ -226,21 +256,155 @@ class SQLiteEventStore:
         """)
         return {row["node_id"]: int(row["max_counter"]) for row in cur.fetchall()}
 
-    def get_events_since(self, peer_version_vector: Dict[str, int]) -> List[Event]:
+    def get_version_vector(self) -> Dict[str, int]:
+        """
+        Compute the local version vector using Contiguous High-Water Marks (CHWM).
+        Design Decision:
+        Using CHWM guarantees that if intermediate events were dropped or received
+        out-of-order, peer nodes will know to re-send the missing gap events rather
+        than assuming the local node has all preceding events.
+        """
+        cur = self.conn.cursor()
+        cur.execute("SELECT DISTINCT node_id FROM events")
+        node_ids = [row["node_id"] for row in cur.fetchall()]
+        return {nid: self.get_contiguous_high_water_mark(nid) for nid in node_ids}
+
+    def get_missing_counter_ranges(self, node_id: str) -> List[tuple[int, int]]:
+        """
+        Find all missing counter intervals for a given node_id between 1 and MAX(counter).
+        Returns list of (start_counter, end_counter) inclusive tuples.
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT counter FROM events WHERE node_id = ? ORDER BY counter ASC",
+            (node_id,)
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return []
+
+        gaps: List[tuple[int, int]] = []
+        expected = 1
+        for row in rows:
+            c = row["counter"]
+            if c > expected:
+                gaps.append((expected, c - 1))
+                expected = c + 1
+            elif c == expected:
+                expected += 1
+        return gaps
+
+    def get_all_gaps(self) -> Dict[str, List[tuple[int, int]]]:
+        """Return missing counter ranges across all known origin nodes."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT DISTINCT node_id FROM events")
+        node_ids = [row["node_id"] for row in cur.fetchall()]
+        all_gaps: Dict[str, List[tuple[int, int]]] = {}
+        for nid in node_ids:
+            g = self.get_missing_counter_ranges(nid)
+            if g:
+                all_gaps[nid] = g
+        return all_gaps
+
+    def get_events_for_counter_ranges(
+        self,
+        ranges: Dict[str, List[tuple[int, int]]],
+    ) -> List[Event]:
+        """
+        Retrieve events matching explicit missing counter ranges for specific origin nodes.
+        :param ranges: {node_id: [(start, end), ...]}
+        """
+        if not ranges:
+            return []
+
+        matched_events: List[Event] = []
+        for nid, intervals in ranges.items():
+            for start_c, end_c in intervals:
+                cur = self.conn.cursor()
+                cur.execute("""
+                    SELECT event_id, node_id, counter, timestamp, entity_type, entity_id,
+                           operation, payload_json, signature
+                    FROM events
+                    WHERE node_id = ? AND counter >= ? AND counter <= ?
+                    ORDER BY counter ASC
+                """, (nid, start_c, end_c))
+                for row in cur.fetchall():
+                    matched_events.append(self._row_to_event(row))
+        return matched_events
+
+    def get_events_since(
+        self,
+        peer_version_vector: Dict[str, int],
+        peer_gaps: Optional[Dict[str, List[tuple[int, int]]]] = None,
+    ) -> List[Event]:
         """
         Returns all events that the peer has NOT yet seen.
         Design Decision:
-        For every node_id in our database, we return events where counter > peer's vector.
-        If the peer has never seen node_id (counter 0), we return all events from node_id.
-        This guarantees small sync payloads (Requirement 4).
+        1. For every node_id in our database, we return events where counter > peer's CHWM.
+        2. If the peer explicitly reported gap ranges, we include those missing events too.
+        Deduplicated by event_id and canonically sorted.
         """
-        all_events = self.get_all_events()
+        seen_ids = set()
         missing = []
+
+        all_events = self.get_all_events()
         for ev in all_events:
             peer_counter = peer_version_vector.get(ev.node_id, 0)
             if ev.counter > peer_counter:
-                missing.append(ev)
-        return missing
+                if ev.event_id not in seen_ids:
+                    seen_ids.add(ev.event_id)
+                    missing.append(ev)
+
+        if peer_gaps:
+            gap_events = self.get_events_for_counter_ranges(peer_gaps)
+            for ev in gap_events:
+                if ev.event_id not in seen_ids:
+                    seen_ids.add(ev.event_id)
+                    missing.append(ev)
+
+        return sorted(missing, key=lambda e: (e.timestamp, e.node_id, e.counter))
+
+    def query_events(
+        self,
+        entity_type: Optional[str] = None,
+        node_id: Optional[str] = None,
+        since_timestamp: Optional[float] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[List[Event], int]:
+        """
+        Paginated query for events with optional filtering.
+        Returns (events_page, total_matching_count).
+        """
+        where_clauses = []
+        params: List[Any] = []
+
+        if entity_type:
+            where_clauses.append("entity_type = ?")
+            params.append(entity_type)
+        if node_id:
+            where_clauses.append("node_id = ?")
+            params.append(node_id)
+        if since_timestamp is not None:
+            where_clauses.append("timestamp >= ?")
+            params.append(since_timestamp)
+
+        where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT COUNT(*) FROM events{where_sql}", params)
+        total_count = cur.fetchone()[0]
+
+        sql = f"""
+            SELECT event_id, node_id, counter, timestamp, entity_type, entity_id,
+                   operation, payload_json, signature
+            FROM events{where_sql}
+            ORDER BY timestamp DESC, node_id ASC, counter DESC
+            LIMIT ? OFFSET ?
+        """
+        cur.execute(sql, params + [limit, offset])
+        events = [self._row_to_event(row) for row in cur.fetchall()]
+        return events, total_count
 
     def count(self) -> int:
         """Total number of events logged."""
@@ -269,7 +433,14 @@ class SQLiteEventStore:
 
 
 # Thread-safety: wrap read/close methods with the store lock (WAL-friendly).
-for _name in ("get_event", "get_all_events", "get_events_for_entity", "get_version_vector", "get_events_since", "count", "close"):
+_THREAD_SAFE_METHODS = (
+    "get_event", "get_all_events", "get_events_for_entity",
+    "get_version_vector", "get_contiguous_high_water_mark", "get_max_counter",
+    "get_max_version_vector", "get_missing_counter_ranges", "get_all_gaps",
+    "get_events_for_counter_ranges", "get_events_since", "query_events",
+    "count", "close",
+)
+for _name in _THREAD_SAFE_METHODS:
     _orig = getattr(SQLiteEventStore, _name)
 
     def _make(orig):

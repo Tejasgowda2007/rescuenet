@@ -159,8 +159,130 @@ FINAL VERDICT: 1000/1000 (100.00%) CONVERGENCE
 
 ---
 
+ HEAD
 ## 🎪 Live Demo (3 Clicks)
 Launch: `streamlit run ui/app.py`
+=======
+# RescueNet FieldMesh: 50 km x 50 km Disaster Digital Twin
+
+> **"When infrastructure fails, coordination survives."**
+
+RescueNet FieldMesh is a complete, production-grade software-based digital twin of an ad-hoc disaster-response communication network operating across a **50 km x 50 km mountainous and dense forest region** with **zero internet, zero cellular towers, and zero physical radio hardware**.
+
+FieldMesh simulates the physical terrain, five strategic rescue stations, radio wave propagation approximations (LoRa 865–867 MHz WPC-compliant and 5.8 GHz directional microwave P2P), multi-hop cost-aware Dijkstra graph routing, SimPy discrete-event packet scheduling with channel contention, and integrates directly with the RescueNet event-sourcing and cryptographic security kernel.
+
+---
+
+## FieldMesh Highlights & Capabilities
+
+1. **Procedural 3D Mountainous & Dense Forest Twin:**
+   - 50 km x 50 km realistic Himalayan/Uttarakhand foothills topography generated deterministically (`seed=42`).
+   - Elevations spanning 320 m (Bhagirathi river gorge) to 2,840 m (Trishul mountain barrier ridge).
+   - Real-time 3D line-of-sight (LOS) ray-marching and 1st Fresnel zone clearance calculation between antennas.
+2. **Realistic Radio Propagation Physics Approximation:**
+   - **Free Space Path Loss (FSPL):** Calculated continuously as $20 \log_{10}(d) + 20 \log_{10}(f) + 32.44$.
+   - **Knife-Edge Mountain Diffraction (ITU-R P.526):** Extra diffraction loss over mountain ridges based on dimensionless parameter $v$.
+   - **Foliage & Canopy Attenuation (Weissberger Modified Exponential Model):** Forest canopy penetration loss up to 25 dB.
+   - **LoRa Semtech SX1276 Airtime Engine:** Exact packet serialization time calculation based on Spreading Factor (SF7–SF12), bandwidth (125 kHz), coding rate (4/5), preamble, and explicit header.
+   - **WPC India Regulatory Compliance:** Configured for 865–867 MHz, 100 mW EIRP limits, with clear disclaimer that physical hardware deployment requires WPC equipment type approval (ETA).
+3. **Dynamic Graph Routing & Topology:**
+   - Graph vertices are stations and relays; viable radio links form edges.
+   - Dynamic Dijkstra shortest path routing weighted by link latency + link margin degradation penalty.
+   - Automatic partition detection (`connected_components`). When Trishul Ridge blocks direct links, packets dynamically re-route over the mountain summit relay (Alpha -> Echo -> Charlie).
+4. **SimPy Discrete-Event Simulation:**
+   - Channel locks using `simpy.PriorityResource`.
+   - Emergency SOS priority queuing (preempts background telemetry).
+   - Packet fragmentation into MTU-sized radio frames, per-hop drop evaluation against Packet Error Rate (PER), and hop-by-hop forwarding queues.
+5. **Full Event-Sourcing & Cryptographic Integration:**
+   - Each station possesses an independent, isolated SQLite database file.
+   - Cryptographic Ed25519 signatures and AES-256-GCM encryption verified at arrival.
+   - Indivisible boat token exclusivity and divisible medical escrow quota conservation guaranteed across partitions.
+6. **Command Center UI (React + TypeScript + Vite + Three.js):**
+   - 10 dedicated operational views: 3D Terrain Twin, Overview, 2D Topo Map, Network Topology, Station Details, Comms Monitor, Event Explorer, Resource Allocation, Real-time Analytics, and Scenarios.
+   - Interactive controls: Cut/Heal links, destroy/restore relay, adjust simulation speed, trigger SOS alerts, inject failure scenarios, and launch the 5-Minute Hackathon Demo.
+
+---
+
+## 5-Minute Hackathon Demo Workflow
+
+FieldMesh includes an automated 7-step Hackathon Demo runner (`fieldmesh/demo_runner.py` and front-end modal) that proves the system's core capabilities in 5 minutes:
+
+| Step | Phase | Live Operational Action & System Observation | Verified Invariant |
+|:---|:---|:---|:---|
+| **1** | Baseline Network | All 5 stations active. LoRa/P2P link budgets calculated. Boat token and antibiotic escrow seeded. | State Convergence |
+| **2** | Mountain Obstruction | Trishul rockslide severs direct valley links. Network partitions into isolated islands. | Partition Detected |
+| **3** | Offline Isolation | Alpha logs Dr. Stone missing at pier; Charlie logs Dr. Stone found at shelter. Bravo consumes escrowed antibiotics. Charlie attempts offline boat claim. | Zero Lost Updates & Escrow Safety |
+| **4** | Relay Activation | ECHO Elevated Relay brought online on summit at 2,820 m. Alpha -> Echo -> Charlie 2-hop route discovered. | Dynamic Multi-Hop Route Recovery |
+| **5** | Delta Sync | Anti-entropy sync runs over multi-hop LoRa radio link. Compact version vectors exchanged. | Sync Success |
+| **6** | Convergence Audit | Event stores compared across all nodes. State projections match 100% byte-for-byte. Conflicting doctor sightings flagged for triage. Single boat owner maintained. | SEC & Conservation |
+| **7** | Security Defense | Rogue node attempts forged signature and escrow over-draw. System rejects tampered packet before SQLite store. | Tamper Immunity |
+
+---
+
+## Quickstart & Launch Instructions
+
+### 1. Launch RescueNet FieldMesh 3D Command Center
+```powershell
+# From rescuenet directory:
+python run_fieldmesh.py --port 8000
+```
+Then open your browser to **http://localhost:8000**.
+The interactive Three.js 3D terrain twin, live station telemetry, packet monitor, and scenario controls will load immediately.
+
+### 2. Run the Full Automated Test Suite (All 54 Tests)
+```powershell
+python -m pytest tests -v
+```
+All **54 integration and unit tests** across Stages 1–8 and FieldMesh pass with 100% green checkmarks.
+
+---
+
+## Architecture Diagram
+
+```
++----------------------------------------------------------------------------------+
+|               RESCUENET FIELDMESH ARCHITECTURE (50 km x 50 km TWIN)             |
++----------------------------------------------------------------------------------+
+|                                                                                  |
+|   +-----------------------+     REST / WebSocket      +----------------------+   |
+|   |  Vite + React + R3F   | <=======================> |  FastAPI App Server  |   |
+|   |  Three.js 3D Twin UI  |   (4 Hz Telemetry Stream) |  (api/server.py)     |   |
+|   +-----------------------+                           +----------------------+   |
+|                                                                  |               |
+|                                                +-----------------+---------------+
+|                                                |                 |               |
+|                                         +--------------+  +--------------+       |
+|                                         |  Scenario &  |  |  Metrics &   |       |
+|                                         |  Demo Runner |  |  Aggregator  |       |
+|                                         +--------------+  +--------------+       |
+|                                                |                 |               |
+|        +---------------------------------------+-----------------+               |
+|        |                                                                         |
+|        v                                                                         |
+|   +--------------------------------------------------------------------------+   |
+|   |                    FIELDMESH SIMULATION ENGINE (SimPy)                   |   |
+|   |                                                                          |   |
+|   |   +-------------------+   +--------------------+   +-----------------+   |   |
+|   |   | Terrain Engine    |   | Radio Propagation  |   | NetworkX Graph  |   |   |
+|   |   | (50x50km, ridges, |-->| (FSPL, ITU-R P.526 |-->| (Dijkstra paths,|   |   |
+|   |   |  rivers, gorges)  |   |  knife-edge, LoRa) |   |  partitions)    |   |   |
+|   |   +-------------------+   +--------------------+   +-----------------+   |   |
+|   |                                                            |             |   |
+|   +------------------------------------------------------------|-------------+   |
+|                                                                v                 |
+|   +--------------------------------------------------------------------------+   |
+|   |                  RESCUENET SECURE ADAPTER LAYER (adapter.py)             |   |
+|   |                                                                          |   |
+|   |    [ALPHA HQ]        [BRAVO CLINIC]      [CHARLIE SHELTER]  [DELTA PATROL]   |   |
+|   |    Node (SQLite)     Node (SQLite)       Node (SQLite)      Node (SQLite)    |   |
+|   |    Ed25519 / AES     Ed25519 / AES       Ed25519 / AES      Ed25519 / AES    |   |
+|   |    Escrow Quotas     Escrow Quotas       Escrow Quotas      Escrow Quotas    |   |
+|   |    Version Vector    Version Vector      Version Vector     Version Vector   |   |
+|   +--------------------------------------------------------------------------+   |
++----------------------------------------------------------------------------------+
+```
+
+>>>>>>> 924cc46 (Deploy RescueNet dashboard)
 
 1. **"1️⃣ Normal (Online)"** — 3 camps share 10 medical kits; Patient X registered; all converged.
 2. **"2️⃣ Network Dies!"** — earthquake cuts signal; Harbor claims 8 kits ("Found"), Mountain claims 5 ("Injured") → 13 claimed for 10 stock.

@@ -8,7 +8,7 @@ When in range of a peer, `sync_with(peer_id)` runs the anti-entropy protocol.
 
 from __future__ import annotations
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from events.event import Event
 from storage.sqlite_store import SQLiteEventStore
 from storage.projector import StateProjector
@@ -22,6 +22,11 @@ from .messages import (
     compress_events,
     decompress_events,
 )
+
+
+class StrictSecurityError(Exception):
+    """Raised when an operation violates strict production security enforcement."""
+    pass
 
 
 class Node:
@@ -46,12 +51,17 @@ class Node:
         db_path: str = ":memory:",
         transport: Optional[Transport] = None,
         keyring: Optional[Any] = None,  # Optional NodeKeyring
+        strict_mode: bool = False,
     ) -> None:
         self.node_id = node_id
         self.store = SQLiteEventStore(db_path)
         self.projector = StateProjector()
         self.transport = transport
         self.keyring = keyring
+        self.strict_mode = strict_mode
+        self.security_drop_log: List[Dict[str, Any]] = []
+        self.gossip_daemon: Optional[Any] = None
+        self._on_event_listeners: List[Callable[[Event], None]] = []
 
         # Initialize local counter from persistent store (resilient to restarts)
         existing_vv = self.store.get_version_vector()
@@ -70,6 +80,25 @@ class Node:
         """Attach cryptographic keyring for field encryption and digital signatures."""
         self.keyring = keyring
 
+    def register_event_listener(self, listener: Callable[[Event], None]) -> None:
+        """Register callback invoked whenever a new event is recorded locally or ingested via sync."""
+        if listener not in self._on_event_listeners:
+            self._on_event_listeners.append(listener)
+
+    def _notify_listeners(self, events: List[Event]) -> None:
+        """Notify all registered event listeners of new events."""
+        for ev in events:
+            for listener in self._on_event_listeners:
+                try:
+                    listener(ev)
+                except Exception:
+                    pass
+
+    def wake_sync_now(self) -> None:
+        """Trigger immediate anti-entropy sync with peers without waiting for timer."""
+        if self.gossip_daemon is not None and hasattr(self.gossip_daemon, "wake_up"):
+            self.gossip_daemon.wake_up()
+
     def record_event(
         self,
         entity_type: str,
@@ -86,9 +115,34 @@ class Node:
         self._local_counter += 1
         ts = timestamp if timestamp is not None else time.time()
 
+        if self.strict_mode:
+            if self.keyring is None:
+                raise StrictSecurityError(
+                    f"Strict security violation on node '{self.node_id}': Cannot record event without active keyring."
+                )
+            if self.keyring.private_key is None:
+                raise StrictSecurityError(
+                    f"Strict security violation on node '{self.node_id}': Cannot record event without private Ed25519 signing key."
+                )
+            if self.keyring.mesh_cipher is None:
+                raise StrictSecurityError(
+                    f"Strict security violation on node '{self.node_id}': Cannot record event without active 256-bit Mesh PSK cipher."
+                )
+
         stored_payload = payload
         if self.keyring is not None:
             stored_payload = self.keyring.encrypt_payload(payload)
+
+        if self.strict_mode:
+            from crypto.ciphers import DEFAULT_SENSITIVE_FIELDS
+            for field_name, field_val in payload.items():
+                if field_name in DEFAULT_SENSITIVE_FIELDS and field_val is not None:
+                    enc_val = stored_payload.get(field_name)
+                    if not isinstance(enc_val, dict) or not enc_val.get("__enc__"):
+                        raise StrictSecurityError(
+                            f"Strict security violation on node '{self.node_id}': "
+                            f"Sensitive victim field '{field_name}' failed encryption and cannot be stored in plaintext!"
+                        )
 
         event = Event(
             node_id=self.node_id,
@@ -104,6 +158,8 @@ class Node:
             event = self.keyring.sign_event(event)
 
         self.store.append(event)
+        self._notify_listeners([event])
+        self.wake_sync_now()
         return event
 
     def get_state(self) -> Dict[str, Dict[str, Any]]:
@@ -140,20 +196,51 @@ class Node:
         """
         Drop any incoming event that fails signature verification.
         Design Decision:
-        Prevents forged or tampered updates from ever being written to SQLite.
+        Prevents forged, unsigned, revoked, or unregistered peer updates
+        from ever being written to SQLite (Fail-Closed).
         """
         if self.keyring is None:
+            if self.strict_mode:
+                raise StrictSecurityError(
+                    f"Strict security violation on node '{self.node_id}': Cannot process sync events in unauthenticated mode."
+                )
+            # Unauthenticated mode (preserves Stages 1-5 & Stage 7 baseline tests)
             return events
 
         valid_events = []
         for ev in events:
-            # If the peer's public key is known, enforce signature check
-            if ev.node_id in self.keyring.trusted_peers:
-                if not self.keyring.verify_event(ev):
-                    # Forged or tampered signature! Drop event
-                    continue
+            # Rule 1: Drop events from revoked devices
+            if self.keyring.is_revoked(ev.node_id):
+                self._log_security_drop(ev, "REVOKED_PEER")
+                continue
+
+            # Rule 2: Fail-Closed: Drop events from unknown / unregistered peers
+            if ev.node_id not in self.keyring.trusted_peers:
+                self._log_security_drop(ev, "UNKNOWN_PEER")
+                continue
+
+            # Rule 3: Fail-Closed: Drop unsigned events when keyring is active
+            if not ev.signature:
+                self._log_security_drop(ev, "MISSING_SIGNATURE")
+                continue
+
+            # Rule 4: Verify Ed25519 digital signature
+            if not self.keyring.verify_event(ev):
+                self._log_security_drop(ev, "INVALID_SIGNATURE")
+                continue
+
             valid_events.append(ev)
         return valid_events
+
+    def _log_security_drop(self, event: Event, reason: str) -> None:
+        """Record dropped event telemetry for security audit log."""
+        self.security_drop_log.append({
+            "event_id": event.event_id,
+            "node_id": event.node_id,
+            "counter": event.counter,
+            "reason": reason,
+            "timestamp": time.time(),
+        })
 
     def sync_with(self, peer_id: str) -> SyncStats:
         """
@@ -183,13 +270,14 @@ class Node:
         events_sent_count = 0
         events_received_count = 0
 
-        # Step 1: Send our local version vector to peer
+        # Step 1: Send our local CHWM version vector and detected gaps to peer
         my_vv = self.get_version_vector()
+        my_gaps = self.store.get_all_gaps()
         req_msg = TransportMessage(
             sender_id=self.node_id,
             recipient_id=peer_id,
             message_type=MSG_SYNC_REQUEST,
-            payload={"version_vector": my_vv},
+            payload={"version_vector": my_vv, "gaps": my_gaps},
         )
         bytes_sent += req_msg.wire_byte_size()
 
@@ -211,6 +299,7 @@ class Node:
 
         # Step 2: Verify and ingest events sent from peer
         peer_vv = dict(resp_msg.payload.get("version_vector", {}))
+        peer_gaps = resp_msg.payload.get("gaps", {})
         events_from_peer_dicts = decompress_events(resp_msg.payload)
         events_from_peer = [Event.from_dict(d) for d in events_from_peer_dicts]
         valid_events = self._verify_and_filter_events(events_from_peer)
@@ -218,9 +307,10 @@ class Node:
         if valid_events:
             self.store.append_many(valid_events)
             events_received_count = len(valid_events)
+            self._notify_listeners(valid_events)
 
-        # Step 3: Determine what events peer is missing based on peer's version vector
-        events_for_peer = self.store.get_events_since(peer_vv)
+        # Step 3: Determine what events peer is missing based on peer's CHWM vector and gaps
+        events_for_peer = self.store.get_events_since(peer_vv, peer_gaps=peer_gaps)
         if events_for_peer:
             delta_msg = TransportMessage(
                 sender_id=self.node_id,
@@ -254,8 +344,10 @@ class Node:
         """
         if message.message_type == MSG_SYNC_REQUEST:
             peer_vv = dict(message.payload.get("version_vector", {}))
-            missing_for_peer = self.store.get_events_since(peer_vv)
+            peer_gaps = message.payload.get("gaps", {})
+            missing_for_peer = self.store.get_events_since(peer_vv, peer_gaps=peer_gaps)
             my_vv = self.get_version_vector()
+            my_gaps = self.store.get_all_gaps()
 
             return TransportMessage(
                 sender_id=self.node_id,
@@ -263,6 +355,7 @@ class Node:
                 message_type=MSG_SYNC_RESPONSE,
                 payload={
                     "version_vector": my_vv,
+                    "gaps": my_gaps,
                     "events_z": compress_events([e.to_dict() for e in missing_for_peer]),
                 },
             )
@@ -272,6 +365,8 @@ class Node:
             incoming_events = [Event.from_dict(d) for d in incoming_event_dicts]
             valid_events = self._verify_and_filter_events(incoming_events)
             ingested_count = self.store.append_many(valid_events)
+            if valid_events:
+                self._notify_listeners(valid_events)
 
             return TransportMessage(
                 sender_id=self.node_id,
@@ -282,8 +377,32 @@ class Node:
 
         return None
 
+    def start_gossip(self, interval_sec: float = 3.0, peers: Optional[List[str]] = None) -> None:
+        """Launch background anti-entropy gossip synchronization daemon."""
+        from sync.gossip import GossipSyncDaemon
+        if self.gossip_daemon is None:
+            self.gossip_daemon = GossipSyncDaemon(
+                node=self,
+                interval_sec=interval_sec,
+                peers=peers,
+            )
+        self.gossip_daemon.start()
+
+    def stop_gossip(self) -> None:
+        """Stop background anti-entropy gossip daemon."""
+        if self.gossip_daemon is not None:
+            self.gossip_daemon.stop()
+            self.gossip_daemon = None
+
+    def get_peer_health(self) -> Dict[str, Dict[str, Any]]:
+        """Return connectivity and synchronization telemetry for all peers."""
+        if self.gossip_daemon is not None:
+            return self.gossip_daemon.get_peer_health()
+        return {}
+
     def close(self) -> None:
-        """Close SQLite database and unregister from transport."""
+        """Shutdown background gossip, unregister from transport, and close SQLite store."""
+        self.stop_gossip()
         if self.transport is not None:
             self.transport.unregister_node(self.node_id)
         self.store.close()

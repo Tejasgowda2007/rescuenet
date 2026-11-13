@@ -1,0 +1,6 @@
+{
+  "cluster_name": "RESCUENET-OFFLINE-CLUSTER",
+  "mesh_psk_hex": "7ee363a5a388a102281e406e0879ece936dd344e1f560f4101a2b17ca82c5a60",
+  "node_id": "gamma-mountain",
+  "role": "relay"
+}
