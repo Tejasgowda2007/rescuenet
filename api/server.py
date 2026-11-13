@@ -24,10 +24,20 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+from auth.routes import auth_router
+from auth.middleware import (
+    get_current_user,
+    require_admin,
+    require_coordinator,
+    require_responder,
+    verify_ws_token,
+)
+from auth.database import init_admin_account
 
 from fieldmesh import (
     TerrainModel,
@@ -251,6 +261,9 @@ async def telemetry_broadcaster():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize initial administrator account
+    init_admin_account()
+
     # Startup: launch background broadcaster if not running under automated tests
     is_testing = "PYTEST_CURRENT_TEST" in os.environ or os.environ.get("RESCUENET_TEST_MODE") == "1"
     broadcaster_task = None
@@ -279,6 +292,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount Authentication Router (/api/auth/login, /logout, /me, /users, etc.)
+app.include_router(auth_router)
+
 
 # -------------------------------------------------------------
 # REST ENDPOINTS: TERRAIN & GEOGRAPHY
@@ -294,12 +310,12 @@ def get_terrain_data():
 # REST ENDPOINTS: STATIONS
 # -------------------------------------------------------------
 
-@app.get("/api/stations")
+@app.get("/api/stations", dependencies=[Depends(get_current_user)])
 def list_stations():
     """List all rescue stations with live telemetry, battery, and coordinates."""
     return [s.to_dict() for s in state.stations.values()]
 
-@app.get("/api/stations/{station_id}")
+@app.get("/api/stations/{station_id}", dependencies=[Depends(get_current_user)])
 def get_station_detail(station_id: str):
     """Retrieve full station inspection record."""
     if station_id not in state.stations:
@@ -328,7 +344,7 @@ def get_station_detail(station_id: str):
         "events": events_list,
     }
 
-@app.post("/api/stations")
+@app.post("/api/stations", dependencies=[Depends(require_coordinator)])
 def create_station(req: StationCreateRequest):
     """Add a new custom station to the simulation."""
     from fieldmesh.stations import StationConfig, RescueStation
@@ -350,7 +366,7 @@ def create_station(req: StationCreateRequest):
     state.topology.recompute_all_links()
     return stn.to_dict()
 
-@app.post("/api/stations/{station_id}/status")
+@app.post("/api/stations/{station_id}/status", dependencies=[Depends(require_coordinator)])
 def set_station_status(station_id: str, req: StationStatusRequest):
     """Change station status (ONLINE, DEGRADED, DESTROYED)."""
     if station_id not in state.stations:
@@ -365,7 +381,7 @@ def set_station_status(station_id: str, req: StationStatusRequest):
     state.topology.recompute_all_links()
     return stn.to_dict()
 
-@app.post("/api/stations/{station_id}/position")
+@app.post("/api/stations/{station_id}/position", dependencies=[Depends(require_coordinator)])
 def reposition_station(station_id: str, req: StationPositionRequest):
     """Move station coordinates across terrain."""
     if station_id not in state.stations:
@@ -380,17 +396,17 @@ def reposition_station(station_id: str, req: StationPositionRequest):
 # REST ENDPOINTS: TOPOLOGY & LINKS
 # -------------------------------------------------------------
 
-@app.get("/api/topology")
+@app.get("/api/topology", dependencies=[Depends(get_current_user)])
 def get_topology():
     """Retrieve full NetworkX graph topology and active routes."""
     return state.topology.export_topology_data()
 
-@app.get("/api/links")
+@app.get("/api/links", dependencies=[Depends(get_current_user)])
 def list_links():
     """List all radio links with link budgets, margins, and statuses."""
     return state.topology.export_topology_data()["edges"]
 
-@app.post("/api/links/toggle")
+@app.post("/api/links/toggle", dependencies=[Depends(require_coordinator)])
 def toggle_link(req: LinkToggleRequest):
     """Manually cut or heal a direct radio link."""
     n1, n2 = req.node_a, req.node_b
@@ -402,7 +418,7 @@ def toggle_link(req: LinkToggleRequest):
         action = "HEALED"
     return {"status": action, "link": state.topology.get_link_info(n1, n2)}
 
-@app.post("/api/links/heal-all")
+@app.post("/api/links/heal-all", dependencies=[Depends(require_coordinator)])
 def heal_all_links():
     """Restore all radio links across the mesh."""
     state.topology.heal_all_links()
@@ -413,7 +429,7 @@ def heal_all_links():
 # REST ENDPOINTS: DISASTER SCENARIOS & REPLAY
 # -------------------------------------------------------------
 
-@app.get("/api/scenarios")
+@app.get("/api/scenarios", dependencies=[Depends(get_current_user)])
 def list_scenarios():
     """Return all 8 available disaster scenario presets."""
     return [
@@ -430,7 +446,7 @@ def list_scenarios():
         for s in SCENARIOS.values()
     ]
 
-@app.post("/api/scenarios/apply")
+@app.post("/api/scenarios/apply", dependencies=[Depends(require_coordinator)])
 def apply_scenario(req: ScenarioApplyRequest):
     """Apply a selected disaster scenario preset."""
     try:
@@ -439,7 +455,7 @@ def apply_scenario(req: ScenarioApplyRequest):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
-@app.post("/api/scenarios/reset")
+@app.post("/api/scenarios/reset", dependencies=[Depends(require_coordinator)])
 def reset_scenario():
     """Reset network to 100% connected baseline."""
     state.scenarios.reset_to_clean_state()
@@ -450,7 +466,7 @@ def reset_scenario():
 # REST ENDPOINTS: ACTIONS & RESCUENET INTEGRATION
 # -------------------------------------------------------------
 
-@app.post("/api/actions/event")
+@app.post("/api/actions/event", dependencies=[Depends(require_responder)])
 def log_event(req: EventRequest):
     """Log an offline event (person, supply, boat, need, shelter) into a station's SQLite store."""
     if req.node_id not in state.stations:
@@ -464,7 +480,7 @@ def log_event(req: EventRequest):
     )
     return {"status": "EVENT_RECORDED", "event_id": ev.event_id, "counter": ev.counter}
 
-@app.post("/api/actions/sync")
+@app.post("/api/actions/sync", dependencies=[Depends(require_responder)])
 def trigger_sync(source_id: str, target_id: Optional[str] = None):
     """Execute anti-entropy delta synchronization over the simulated radio network."""
     if source_id not in state.nodes:
@@ -485,7 +501,7 @@ def trigger_sync(source_id: str, target_id: Optional[str] = None):
 
     return {"status": "SYNC_COMPLETE", "results": results}
 
-@app.post("/api/actions/sos")
+@app.post("/api/actions/sos", dependencies=[Depends(get_current_user)])
 def trigger_sos(req: SOSRequest):
     """Broadcast high-priority emergency SOS message across the radio mesh."""
     if req.source_id not in state.stations:
@@ -510,7 +526,7 @@ def trigger_sos(req: SOSRequest):
     state.engine.schedule_packet(pkt)
     return {"status": "SOS_BROADCAST_SCHEDULED", "packet_id": pkt.packet_id}
 
-@app.post("/api/actions/resolve-conflict")
+@app.post("/api/actions/resolve-conflict", dependencies=[Depends(require_coordinator)])
 def resolve_person_conflict(person_id: str, resolved_status: str, notes: str = "", station_id: str = "alpha"):
     """Resolve a flagged person conflict via human triage."""
     if station_id not in state.nodes:
@@ -530,7 +546,7 @@ def resolve_person_conflict(person_id: str, resolved_status: str, notes: str = "
 # REST ENDPOINTS: RESCUENET CORE DOMAIN & NODE APIS
 # -------------------------------------------------------------
 
-@app.get("/api/nodes")
+@app.get("/api/nodes", dependencies=[Depends(get_current_user)])
 def list_nodes():
     """List all disaster mesh nodes, version vectors, gaps, and health status."""
     result = []
@@ -555,7 +571,7 @@ def list_nodes():
         })
     return result
 
-@app.post("/api/nodes/{node_id}/sync")
+@app.post("/api/nodes/{node_id}/sync", dependencies=[Depends(require_responder)])
 def sync_node_endpoint(node_id: str, target_id: Optional[str] = None):
     """Trigger anti-entropy sync for node_id against specific target or all peers."""
     if node_id not in state.nodes:
@@ -576,7 +592,7 @@ def sync_node_endpoint(node_id: str, target_id: Optional[str] = None):
             })
     return {"status": "SYNC_COMPLETE", "node_id": node_id, "results": results}
 
-@app.get("/api/incidents")
+@app.get("/api/incidents", dependencies=[Depends(get_current_user)])
 def list_incidents(node_id: str = "alpha"):
     """List all emergency incidents from materialized state."""
     if node_id not in state.nodes:
@@ -585,7 +601,7 @@ def list_incidents(node_id: str = "alpha"):
     incidents = node_state.get("incident", {})
     return list(incidents.values())
 
-@app.post("/api/incidents")
+@app.post("/api/incidents", dependencies=[Depends(require_coordinator)])
 def create_incident_endpoint(req: IncidentCreateRequest):
     """Create a new emergency disaster incident."""
     if req.node_id not in state.nodes:
@@ -602,7 +618,7 @@ def create_incident_endpoint(req: IncidentCreateRequest):
     ev = node.record_event("incident", req.incident_id, "CREATE", payload)
     return {"status": "INCIDENT_CREATED", "incident_id": req.incident_id, "event_id": ev.event_id}
 
-@app.post("/api/incidents/{incident_id}/status")
+@app.post("/api/incidents/{incident_id}/status", dependencies=[Depends(require_coordinator)])
 def update_incident_status_endpoint(incident_id: str, req: IncidentStatusRequest):
     """Update incident status, assign teams, or close incident."""
     if req.node_id not in state.nodes:
@@ -623,7 +639,7 @@ def update_incident_status_endpoint(incident_id: str, req: IncidentStatusRequest
 
     raise HTTPException(status_code=400, detail="No status or team assignment provided")
 
-@app.get("/api/victims")
+@app.get("/api/victims", dependencies=[Depends(get_current_user)])
 def list_victims(node_id: str = "alpha"):
     """List medical victims and triage records."""
     if node_id not in state.nodes:
@@ -632,7 +648,7 @@ def list_victims(node_id: str = "alpha"):
     victims = node_state.get("victim", {})
     return list(victims.values())
 
-@app.post("/api/victims")
+@app.post("/api/victims", dependencies=[Depends(require_responder)])
 def register_victim_endpoint(req: VictimCreateRequest):
     """Register a new victim with medical triage category."""
     if req.node_id not in state.nodes:
@@ -649,7 +665,7 @@ def register_victim_endpoint(req: VictimCreateRequest):
     ev = node.record_event("victim", req.victim_id, "CREATE", payload)
     return {"status": "VICTIM_REGISTERED", "victim_id": req.victim_id, "event_id": ev.event_id}
 
-@app.post("/api/victims/{victim_id}/triage")
+@app.post("/api/victims/{victim_id}/triage", dependencies=[Depends(require_responder)])
 def update_victim_triage_endpoint(victim_id: str, req: VictimTriageRequest):
     """Update victim medical triage classification or status."""
     if req.node_id not in state.nodes:
@@ -668,7 +684,7 @@ def update_victim_triage_endpoint(victim_id: str, req: VictimTriageRequest):
     ev = node.record_event("victim", victim_id, "UPDATE_TRIAGE", payload)
     return {"status": "TRIAGE_UPDATED", "victim_id": victim_id, "event_id": ev.event_id}
 
-@app.get("/api/shelters")
+@app.get("/api/shelters", dependencies=[Depends(get_current_user)])
 def list_shelters(node_id: str = "alpha"):
     """List evacuation shelters and occupancy."""
     if node_id not in state.nodes:
@@ -677,7 +693,7 @@ def list_shelters(node_id: str = "alpha"):
     shelters = node_state.get("shelter", {})
     return list(shelters.values())
 
-@app.post("/api/shelters")
+@app.post("/api/shelters", dependencies=[Depends(require_coordinator)])
 def create_shelter_endpoint(req: ShelterCreateRequest):
     """Create a new evacuation shelter."""
     if req.node_id not in state.nodes:
@@ -693,7 +709,7 @@ def create_shelter_endpoint(req: ShelterCreateRequest):
     ev = node.record_event("shelter", req.shelter_id, "CREATE", payload)
     return {"status": "SHELTER_CREATED", "shelter_id": req.shelter_id, "event_id": ev.event_id}
 
-@app.post("/api/shelters/{shelter_id}/occupancy")
+@app.post("/api/shelters/{shelter_id}/occupancy", dependencies=[Depends(require_coordinator)])
 def update_shelter_occupancy_endpoint(shelter_id: str, req: ShelterOccupancyRequest):
     """Update current shelter occupancy count."""
     if req.node_id not in state.nodes:
@@ -702,7 +718,7 @@ def update_shelter_occupancy_endpoint(shelter_id: str, req: ShelterOccupancyRequ
     ev = node.record_event("shelter", shelter_id, "UPDATE", {"occupancy": req.occupancy})
     return {"status": "OCCUPANCY_UPDATED", "shelter_id": shelter_id, "occupancy": req.occupancy, "event_id": ev.event_id}
 
-@app.get("/api/resources")
+@app.get("/api/resources", dependencies=[Depends(get_current_user)])
 def get_resources(node_id: str = "alpha"):
     """Return supply pools, escrow allowances, and scarce item token status."""
     if node_id not in state.nodes:
@@ -715,7 +731,7 @@ def get_resources(node_id: str = "alpha"):
         "needs": node_state.get("need", {}),
     }
 
-@app.post("/api/resources/pool")
+@app.post("/api/resources/pool", dependencies=[Depends(require_coordinator)])
 def create_resource_pool_endpoint(req: SupplyPoolCreateRequest):
     """Create an escrow-backed divisible supply pool."""
     if req.node_id not in state.nodes:
@@ -731,7 +747,7 @@ def create_resource_pool_endpoint(req: SupplyPoolCreateRequest):
     )
     return {"status": "POOL_CREATED", "supply_id": req.supply_id, "event_id": ev.event_id}
 
-@app.post("/api/resources/consume")
+@app.post("/api/resources/consume", dependencies=[Depends(require_responder)])
 def consume_resource_endpoint(req: SupplyConsumeRequest):
     """Consume from local node's escrow quota."""
     if req.node_id not in state.nodes:
@@ -749,7 +765,7 @@ def consume_resource_endpoint(req: SupplyConsumeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/resources/transfer-quota")
+@app.post("/api/resources/transfer-quota", dependencies=[Depends(require_coordinator)])
 def transfer_quota_endpoint(req: SupplyTransferQuotaRequest):
     """Transfer escrow quota between nodes."""
     if req.from_node_id not in state.nodes or req.to_node_id not in state.nodes:
@@ -766,7 +782,7 @@ def transfer_quota_endpoint(req: SupplyTransferQuotaRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/resources/token/register")
+@app.post("/api/resources/token/register", dependencies=[Depends(require_coordinator)])
 def register_scarce_token_endpoint(req: ScarceTokenRegisterRequest):
     """Register scarce asset token and assign genesis holder."""
     if req.node_id not in state.nodes:
@@ -781,7 +797,7 @@ def register_scarce_token_endpoint(req: ScarceTokenRegisterRequest):
     )
     return {"status": "TOKEN_REGISTERED", "item_id": req.item_id, "holder": req.initial_holder_id, "event_id": ev.event_id}
 
-@app.post("/api/resources/token/request")
+@app.post("/api/resources/token/request", dependencies=[Depends(require_responder)])
 def request_scarce_token_endpoint(req: ScarceTokenRequestAction):
     """Request allocation for a scarce indivisible item."""
     if req.node_id not in state.nodes:
@@ -795,7 +811,7 @@ def request_scarce_token_endpoint(req: ScarceTokenRequestAction):
     )
     return {"status": "ALLOCATION_REQUESTED", "item_id": req.item_id, "event_id": ev.event_id}
 
-@app.post("/api/resources/token/confirm")
+@app.post("/api/resources/token/confirm", dependencies=[Depends(require_coordinator)])
 def confirm_scarce_token_endpoint(req: ScarceTokenConfirmAction):
     """Confirm scarce asset allocation (verified by token holder)."""
     if req.node_id not in state.nodes:
@@ -812,7 +828,7 @@ def confirm_scarce_token_endpoint(req: ScarceTokenConfirmAction):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/events")
+@app.get("/api/events", dependencies=[Depends(get_current_user)])
 def query_events_endpoint(
     node_id: str = "alpha",
     entity_type: Optional[str] = None,
@@ -849,7 +865,7 @@ def query_events_endpoint(
         ],
     }
 
-@app.get("/api/security/peers")
+@app.get("/api/security/peers", dependencies=[Depends(require_admin)])
 def get_security_peers(node_id: str = "alpha"):
     """Return trusted and revoked peer public keys and SHA-256 fingerprints."""
     if node_id not in state.nodes:
@@ -880,7 +896,7 @@ def get_security_peers(node_id: str = "alpha"):
         "revoked_peers": list(node.keyring.revoked_peers),
     }
 
-@app.post("/api/security/revoke")
+@app.post("/api/security/revoke", dependencies=[Depends(require_admin)])
 def revoke_peer_endpoint(req: PeerRevokeRequest):
     """Revoke a peer node across the cluster."""
     if req.node_id not in state.nodes:
@@ -892,7 +908,7 @@ def revoke_peer_endpoint(req: PeerRevokeRequest):
     node.keyring.revoke_peer(req.target_peer_id, reason=req.reason)
     return {"status": "PEER_REVOKED", "target": req.target_peer_id, "reason": req.reason}
 
-@app.get("/api/security/audit")
+@app.get("/api/security/audit", dependencies=[Depends(require_admin)])
 def get_security_audit_logs():
     """Retrieve security drop telemetry and tampering logs across all nodes."""
     logs = []
@@ -906,7 +922,7 @@ def get_security_audit_logs():
 # REST ENDPOINTS: 5-MINUTE HACKATHON DEMO RUNNER
 # -------------------------------------------------------------
 
-@app.get("/api/demo/status")
+@app.get("/api/demo/status", dependencies=[Depends(get_current_user)])
 def get_demo_status():
     """Retrieve demo step history and current step pointer."""
     return {
@@ -923,7 +939,7 @@ def get_demo_status():
         ],
     }
 
-@app.post("/api/demo/step/{step_number}")
+@app.post("/api/demo/step/{step_number}", dependencies=[Depends(require_coordinator)])
 def execute_demo_step(step_number: int):
     """Run an individual step (1 to 7) of the 5-minute hackathon demo."""
     if step_number == 1:
@@ -951,7 +967,7 @@ def execute_demo_step(step_number: int):
         "invariants": res.invariants_verified,
     }
 
-@app.post("/api/demo/reset")
+@app.post("/api/demo/reset", dependencies=[Depends(require_coordinator)])
 def reset_demo():
     """Reset demo state back to step 0."""
     state.demo = HackathonDemoRunner(state.terrain, state.stations, state.topology, state.engine, state.transport)
@@ -963,17 +979,17 @@ def reset_demo():
 # REST ENDPOINTS: METRICS & EXPERIMENT REPORTS
 # -------------------------------------------------------------
 
-@app.get("/api/metrics")
+@app.get("/api/metrics", dependencies=[Depends(get_current_user)])
 def get_live_metrics():
     """Retrieve live computed telemetry KPIs and invariant status."""
     return state.metrics.compute_live_metrics()
 
-@app.get("/api/metrics/timeseries")
+@app.get("/api/metrics/timeseries", dependencies=[Depends(get_current_user)])
 def get_metrics_timeseries():
     """Retrieve time-series history arrays for dashboard charts."""
     return state.metrics.export_timeseries_chart_data()
 
-@app.get("/api/packets")
+@app.get("/api/packets", dependencies=[Depends(get_current_user)])
 def get_packet_logs(limit: int = 50):
     """Retrieve recent packet transmission records."""
     recent = state.engine.transmission_log[-limit:][::-1]
@@ -998,7 +1014,7 @@ def get_packet_logs(limit: int = 50):
         for r in recent
     ]
 
-@app.post("/api/simulation/control")
+@app.post("/api/simulation/control", dependencies=[Depends(require_coordinator)])
 def control_simulation(req: SimControlRequest):
     """Control discrete-event simulation engine (play, pause, step, speed)."""
     if req.action == "pause":
@@ -1017,7 +1033,14 @@ def control_simulation(req: SimControlRequest):
 # -------------------------------------------------------------
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
+    cookie_token = websocket.cookies.get("rescuenet_token")
+    auth_token = token or cookie_token
+    user = verify_ws_token(auth_token)
+    if not user:
+        await websocket.close(code=1008)
+        return
+
     await ws_manager.connect(websocket)
     try:
         while True:

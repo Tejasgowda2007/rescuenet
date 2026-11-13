@@ -16,6 +16,8 @@ import { HackathonDemoModal } from './components/HackathonDemoModal';
 import { QuickActionDock } from './components/QuickActionDock';
 import { useSimulationSocket } from './hooks/useSimulationSocket';
 import { TerrainData, StationData, LinkData } from './types';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginPage } from './components/LoginPage';
 
 const DEFAULT_STATIONS: Record<string, StationData> = {
   alpha: {
@@ -233,7 +235,9 @@ const DEFAULT_LINKS: LinkData[] = [
   },
 ];
 
-export function App() {
+function DashboardContent() {
+  const { user, token, isLoading, apiFetch } = useAuth();
+
   const getInitialView = (): ViewType => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as ViewType;
@@ -277,7 +281,7 @@ export function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const { connected, metrics, stations: wsStations } = useSimulationSocket();
+  const { connected, metrics, stations: wsStations } = useSimulationSocket(token);
 
   // Merge WebSocket stations with local state
   useEffect(() => {
@@ -288,12 +292,12 @@ export function App() {
 
   // Initial fetch for terrain, stations, and links
   const refreshAll = () => {
-    fetch('/api/terrain')
+    apiFetch('/api/terrain')
       .then((r) => r.json())
       .then((d) => setTerrain(d))
       .catch(() => {});
 
-    fetch('/api/stations')
+    apiFetch('/api/stations')
       .then((r) => r.json())
       .then((data: StationData[]) => {
         const map: Record<string, StationData> = {};
@@ -304,22 +308,23 @@ export function App() {
       })
       .catch(() => {});
 
-    fetch('/api/links')
+    apiFetch('/api/links')
       .then((r) => r.json())
       .then((data: LinkData[]) => setLinks(data))
       .catch(() => {});
   };
 
   useEffect(() => {
+    if (!user) return;
     refreshAll();
     const interval = setInterval(() => {
-      fetch('/api/links')
+      apiFetch('/api/links')
         .then((r) => r.json())
         .then((data: LinkData[]) => setLinks(data))
         .catch(() => {});
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   // Keyboard Shortcuts (1-9 for views, Escape for modal close)
   useEffect(() => {
@@ -344,7 +349,7 @@ export function App() {
   }, []);
 
   const handleToggleLink = async (n1: string, n2: string) => {
-    await fetch('/api/links/toggle', {
+    await apiFetch('/api/links/toggle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ node_a: n1, node_b: n2 }),
@@ -353,12 +358,12 @@ export function App() {
   };
 
   const handleHealAll = async () => {
-    await fetch('/api/links/heal-all', { method: 'POST' });
+    await apiFetch('/api/links/heal-all', { method: 'POST' });
     refreshAll();
   };
 
   const handleTriggerSOS = async (msg: string) => {
-    await fetch('/api/actions/sos', {
+    await apiFetch('/api/actions/sos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source_id: 'alpha', message: msg, urgency: 'CRITICAL' }),
@@ -370,6 +375,21 @@ export function App() {
     setSelectedStationId(id);
     handleViewChange('stations');
   };
+
+  // Loading state while verifying credentials or session
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#060A10] flex flex-col items-center justify-center text-slate-300 font-mono text-sm space-y-4">
+        <div className="w-10 h-10 border-2 border-[#00E5FF] border-t-transparent rounded-full animate-spin" />
+        <p className="tracking-widest text-xs uppercase text-slate-400">VERIFYING OPERATOR CLEARANCE...</p>
+      </div>
+    );
+  }
+
+  // Unauthenticated: display defense-grade Login Page
+  if (!user) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F4F6F8] text-[#0F172A] flex flex-col font-sans selection:bg-[#1B4332] selection:text-white">
@@ -517,6 +537,14 @@ export function App() {
         onRefresh={refreshAll}
       />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <DashboardContent />
+    </AuthProvider>
   );
 }
 

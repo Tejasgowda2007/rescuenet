@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Radio, Play, Pause, AlertOctagon, Award, ShieldAlert, Wifi, WifiOff } from 'lucide-react';
+import { Radio, Play, Pause, AlertOctagon, Award, ShieldAlert, Wifi, WifiOff, LogOut, UserCircle } from 'lucide-react';
 import { LiveMetrics } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   metrics: LiveMetrics | null;
@@ -15,6 +16,7 @@ export const Header: React.FC<HeaderProps> = ({
   onTriggerSOS,
   activeScenarioName = 'Normal Operations (Baseline)',
 }) => {
+  const { user, logout } = useAuth();
   const [isPlaying, setIsPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [sosModal, setSosModal] = useState(false);
@@ -135,6 +137,39 @@ export const Header: React.FC<HeaderProps> = ({
             <AlertOctagon className="w-3.5 h-3.5" />
             <span>Broadcast SOS</span>
           </button>
+
+          {/* Operator Profile & Logout */}
+          <div className="h-4 w-px bg-slate-300 mx-0.5 hidden sm:block" />
+          <div className="flex items-center gap-2 pl-1">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-bold text-[#0F172A] leading-tight flex items-center gap-1 justify-end">
+                <UserCircle className="w-3.5 h-3.5 text-slate-500" />
+                {user?.username || 'Operator'}
+              </span>
+              <span className="text-[9px] font-mono font-semibold text-slate-500">
+                {user?.role || 'RESPONDER'}
+              </span>
+            </div>
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border uppercase ${
+                user?.role === 'ADMIN'
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : user?.role === 'COORDINATOR'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {user?.role || 'RESP'}
+            </span>
+            <button
+              onClick={logout}
+              title="Terminate Secure Session (Logout)"
+              className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-700 border border-slate-200 transition"
+              aria-label="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

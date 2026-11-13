@@ -9,6 +9,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from api.node_server import RescueNetNodeService, create_app
+from auth.database import init_admin_account, get_user_by_username, update_user_password
 
 
 TEST_MESH_KEY = bytes.fromhex("16338ae4f5da5340c4495a0083065aa94c69aa7a1ff4d63e175f43401ac16d69")
@@ -39,12 +40,30 @@ def test_node_server_rest_endpoints(test_node_service):
     app = create_app(test_node_service)
     client = TestClient(app)
 
-    # 1. Status endpoint
+    # 1. Status endpoint (Public health check)
     res_status = client.get("/api/node/status")
     assert res_status.status_code == 200
     data = res_status.json()
     assert data["node_id"] == "alpha-harbor"
     assert data["strict_security"] is True
+
+    # 1b. Verify unauthenticated access to protected endpoint is rejected with 401
+    res_unauth = client.get("/api/node/incidents")
+    assert res_unauth.status_code == 401
+    assert "detail" in res_unauth.json()
+
+    # 1c. Authenticate operator session
+    os.environ["RESCUENET_ADMIN_USER"] = "admin"
+    os.environ["RESCUENET_ADMIN_PASSWORD"] = "Rnet!Admin2026"
+    init_admin_account()
+    u = get_user_by_username("admin")
+    if u:
+        update_user_password(u["id"], "Rnet!Admin2026")
+
+    login_res = client.post("/api/auth/login", json={"username": "admin", "password": "Rnet!Admin2026"})
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+    client.headers = {"Authorization": f"Bearer {token}"}
 
     # 2. Incident creation & listing
     res_inc = client.post("/api/node/incidents", json={

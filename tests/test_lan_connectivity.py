@@ -42,9 +42,9 @@ def test_react_production_bundle_exists():
 
 def test_static_files_mounted_on_root():
     """Verify FastAPI routes mount StaticFiles at root / for frontend delivery."""
-    mounted_names = [route.name for route in app.routes]
+    mounted_names = [getattr(route, "name", None) for route in app.routes]
     assert "frontend" in mounted_names, "Static frontend mount missing from app.routes"
-    frontend_route = next(r for r in app.routes if r.name == "frontend")
+    frontend_route = next(r for r in app.routes if getattr(r, "name", None) == "frontend")
     assert frontend_route.path == "", "Frontend mount path should be at root"
 
 

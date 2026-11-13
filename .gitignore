@@ -19,6 +19,9 @@ __pycache__/
 *.pem
 *.key
 id_ed25519*
+.auth_secret
+*ADMIN_CREDENTIALS*
+data/
 
 # Local environments
 venv/

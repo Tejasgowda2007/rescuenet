@@ -24,7 +24,7 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +42,15 @@ from sync.node import Node, StrictSecurityError
 from sync.gossip import GossipSyncDaemon
 from crypto.keyring import NodeKeyring
 from storage.attachments import AttachmentManager
+from auth.routes import auth_router
+from auth.middleware import (
+    get_current_user,
+    require_admin,
+    require_coordinator,
+    require_responder,
+    verify_ws_token,
+)
+from auth.database import init_admin_account
 
 
 # -------------------------------------------------------------
@@ -412,11 +421,15 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Mount Authentication Router (/api/auth/login, /logout, /me, /users, etc.)
+    app.include_router(auth_router)
+
     # -------------------------------------------------------------
     # LIFECYCLE HOOKS
     # -------------------------------------------------------------
     @app.on_event("startup")
     async def startup_event():
+        init_admin_account()
         service.async_loop = asyncio.get_running_loop()
         # Launch periodic telemetry broadcast task
         asyncio.create_task(telemetry_stream_worker())
@@ -477,7 +490,15 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     @app.websocket("/ws")
     @app.websocket("/api/node/ws")
-    async def websocket_endpoint(ws: WebSocket):
+    async def websocket_endpoint(ws: WebSocket, token: Optional[str] = None):
+        cookie_token = ws.cookies.get("rescuenet_token")
+        auth_token = token or cookie_token
+        user = verify_ws_token(auth_token)
+        if not user:
+            # Policy violation / unauthorized
+            await ws.close(code=1008)
+            return
+
         await ws_broadcaster.connect(ws)
         # Send initial full state snapshot
         try:
@@ -523,11 +544,11 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             "timestamp": time.time(),
         }
 
-    @app.get("/api/node/state")
+    @app.get("/api/node/state", dependencies=[Depends(get_current_user)])
     def get_node_state():
         return service.node.get_state()
 
-    @app.get("/api/stations")
+    @app.get("/api/stations", dependencies=[Depends(get_current_user)])
     def get_stations():
         ph = service.node.get_peer_health()
         res = []
@@ -555,7 +576,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             })
         return res
 
-    @app.get("/api/topology")
+    @app.get("/api/topology", dependencies=[Depends(get_current_user)])
     def get_topology():
         nodes = get_stations()
         links = []
@@ -572,7 +593,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             })
         return {"nodes": nodes, "links": links}
 
-    @app.get("/api/nodes")
+    @app.get("/api/nodes", dependencies=[Depends(get_current_user)])
     def get_nodes_list():
         st = service.node.get_state()
         vv = service.node.get_version_vector()
@@ -590,16 +611,16 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             })
         return res
 
-    @app.get("/api/nodes/{nid}/state")
+    @app.get("/api/nodes/{nid}/state", dependencies=[Depends(get_current_user)])
     def get_target_node_state(nid: str):
         return service.node.get_state()
 
-    @app.get("/api/nodes/{nid}/events")
+    @app.get("/api/nodes/{nid}/events", dependencies=[Depends(get_current_user)])
     def get_target_node_events(nid: str):
         all_events = service.node.store.get_all_events()
         return [e.to_dict() for e in all_events if e.node_id == nid or nid == "all"]
 
-    @app.get("/api/metrics")
+    @app.get("/api/metrics", dependencies=[Depends(get_current_user)])
     def get_metrics():
         stats = service.transport.get_stats()
         state = service.node.get_state()
@@ -620,14 +641,14 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 1. INCIDENTS API
     # -------------------------------------------------------------
-    @app.get("/api/node/incidents")
-    @app.get("/api/incidents")
+    @app.get("/api/node/incidents", dependencies=[Depends(get_current_user)])
+    @app.get("/api/incidents", dependencies=[Depends(get_current_user)])
     def list_incidents():
         incidents = service.node.get_state().get("incident", {})
         return sorted(list(incidents.values()), key=lambda x: x.get("_created_at", 0), reverse=True)
 
-    @app.post("/api/node/incidents")
-    @app.post("/api/incidents")
+    @app.post("/api/node/incidents", dependencies=[Depends(require_coordinator)])
+    @app.post("/api/incidents", dependencies=[Depends(require_coordinator)])
     def create_incident(req: IncidentRequest):
         iid = req.incident_id or f"inc-{int(time.time()*1000)%1000000}"
         ev = service.node.record_event(
@@ -648,14 +669,14 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 2. VICTIMS & TRIAGE API
     # -------------------------------------------------------------
-    @app.get("/api/node/victims")
-    @app.get("/api/victims")
+    @app.get("/api/node/victims", dependencies=[Depends(get_current_user)])
+    @app.get("/api/victims", dependencies=[Depends(get_current_user)])
     def list_victims():
         victims = service.node.get_state().get("victim", {})
         return sorted(list(victims.values()), key=lambda x: x.get("_created_at", 0), reverse=True)
 
-    @app.post("/api/node/victims")
-    @app.post("/api/victims")
+    @app.post("/api/node/victims", dependencies=[Depends(require_responder)])
+    @app.post("/api/victims", dependencies=[Depends(require_responder)])
     def record_victim(req: VictimRequest):
         vid = req.victim_id or f"vic-{int(time.time()*1000)%1000000}"
         ev = service.node.record_event(
@@ -676,14 +697,14 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 3. RESCUERS API
     # -------------------------------------------------------------
-    @app.get("/api/node/rescuers")
-    @app.get("/api/rescuers")
+    @app.get("/api/node/rescuers", dependencies=[Depends(get_current_user)])
+    @app.get("/api/rescuers", dependencies=[Depends(get_current_user)])
     def list_rescuers():
         rescuers = service.node.get_state().get("rescuer", {})
         return list(rescuers.values())
 
-    @app.post("/api/node/rescuers")
-    @app.post("/api/rescuers")
+    @app.post("/api/node/rescuers", dependencies=[Depends(require_coordinator)])
+    @app.post("/api/rescuers", dependencies=[Depends(require_coordinator)])
     def record_rescuer(req: RescuerRequest):
         rid = req.rescuer_id or f"res-{int(time.time()*1000)%1000000}"
         ev = service.node.record_event(
@@ -704,8 +725,8 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 4. SUPPLIES & NEEDS API
     # -------------------------------------------------------------
-    @app.get("/api/node/supplies")
-    @app.get("/api/supplies")
+    @app.get("/api/node/supplies", dependencies=[Depends(get_current_user)])
+    @app.get("/api/supplies", dependencies=[Depends(get_current_user)])
     def list_supplies():
         state = service.node.get_state()
         return {
@@ -714,8 +735,8 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             "pools": list(state.get("supply_intent", {}).values()),
         }
 
-    @app.post("/api/node/supplies")
-    @app.post("/api/supplies")
+    @app.post("/api/node/supplies", dependencies=[Depends(require_coordinator)])
+    @app.post("/api/supplies", dependencies=[Depends(require_coordinator)])
     def record_supply(req: SupplyRequest):
         sid = req.supply_id or f"sup-{int(time.time()*1000)%1000000}"
         etype = "need" if req.is_need else "supply"
@@ -741,14 +762,14 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 5. EMERGENCY ALERTS API
     # -------------------------------------------------------------
-    @app.get("/api/node/alerts")
-    @app.get("/api/alerts")
+    @app.get("/api/node/alerts", dependencies=[Depends(get_current_user)])
+    @app.get("/api/alerts", dependencies=[Depends(get_current_user)])
     def list_alerts():
         alerts = service.node.get_state().get("alert", {})
         return sorted(list(alerts.values()), key=lambda x: x.get("_created_at", 0), reverse=True)
 
-    @app.post("/api/node/alerts")
-    @app.post("/api/alerts")
+    @app.post("/api/node/alerts", dependencies=[Depends(require_coordinator)])
+    @app.post("/api/alerts", dependencies=[Depends(require_coordinator)])
     def create_alert(req: AlertRequest):
         aid = req.alert_id or f"alt-{int(time.time()*1000)%1000000}"
         ev = service.node.record_event(
@@ -766,7 +787,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
         )
         return {"status": "SUCCESS", "alert_id": aid, "event": ev.to_dict()}
 
-    @app.post("/api/node/alerts/{alert_id}/acknowledge")
+    @app.post("/api/node/alerts/{alert_id}/acknowledge", dependencies=[Depends(require_responder)])
     def acknowledge_alert(alert_id: str):
         ev = service.node.record_event(
             entity_type="alert",
@@ -776,7 +797,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
         )
         return {"status": "SUCCESS", "alert_id": alert_id, "event": ev.to_dict()}
 
-    @app.post("/api/node/alerts/{alert_id}/resolve")
+    @app.post("/api/node/alerts/{alert_id}/resolve", dependencies=[Depends(require_responder)])
     def resolve_alert(alert_id: str):
         ev = service.node.record_event(
             entity_type="alert",
@@ -786,7 +807,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
         )
         return {"status": "SUCCESS", "alert_id": alert_id, "event": ev.to_dict()}
 
-    @app.post("/api/actions/sos")
+    @app.post("/api/actions/sos", dependencies=[Depends(get_current_user)])
     def action_sos(req: AlertRequest):
         """Broadcast emergency SOS."""
         return create_alert(req)
@@ -794,8 +815,8 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 6. FIELD CHAT API
     # -------------------------------------------------------------
-    @app.get("/api/node/chat")
-    @app.get("/api/chat")
+    @app.get("/api/node/chat", dependencies=[Depends(get_current_user)])
+    @app.get("/api/chat", dependencies=[Depends(get_current_user)])
     def list_chat(channel: Optional[str] = None):
         chats = service.node.get_state().get("chat", {})
         msg_list = list(chats.values())
@@ -803,8 +824,8 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             msg_list = [m for m in msg_list if m.get("channel") == channel]
         return sorted(msg_list, key=lambda x: x.get("_created_at", 0))
 
-    @app.post("/api/node/chat")
-    @app.post("/api/chat")
+    @app.post("/api/node/chat", dependencies=[Depends(get_current_user)])
+    @app.post("/api/chat", dependencies=[Depends(get_current_user)])
     def post_chat(req: ChatRequest):
         mid = req.message_id or f"msg-{int(time.time()*1000)%1000000}"
         prof = NODE_PROFILES.get(service.node_id, {})
@@ -826,15 +847,15 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 7. OFFLINE ATTACHMENTS API
     # -------------------------------------------------------------
-    @app.get("/api/node/attachments")
-    @app.get("/api/attachments")
+    @app.get("/api/node/attachments", dependencies=[Depends(get_current_user)])
+    @app.get("/api/attachments", dependencies=[Depends(get_current_user)])
     def list_attachments():
         state_att = service.node.get_state().get("attachment", {})
         disk_att = service.attachment_mgr.list_attachments()
         return {"events": list(state_att.values()), "files": disk_att}
 
-    @app.post("/api/node/attachments")
-    @app.post("/api/attachments")
+    @app.post("/api/node/attachments", dependencies=[Depends(get_current_user)])
+    @app.post("/api/attachments", dependencies=[Depends(get_current_user)])
     async def upload_attachment(
         file: UploadFile = File(...),
         description: str = Form(""),
@@ -855,8 +876,8 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
         )
         return {"status": "SUCCESS", "attachment": saved, "event": ev.to_dict()}
 
-    @app.get("/api/node/attachments/{file_id}/download")
-    @app.get("/api/attachments/{file_id}/download")
+    @app.get("/api/node/attachments/{file_id}/download", dependencies=[Depends(get_current_user)])
+    @app.get("/api/attachments/{file_id}/download", dependencies=[Depends(get_current_user)])
     def download_attachment(file_id: str):
         found = service.attachment_mgr.get_attachment(file_id)
         if not found:
@@ -867,7 +888,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
     # -------------------------------------------------------------
     # 8. MESH PEERS & MANUAL SYNC API
     # -------------------------------------------------------------
-    @app.post("/api/node/peers")
+    @app.post("/api/node/peers", dependencies=[Depends(require_coordinator)])
     def add_peer(req: AddPeerRequest):
         service.add_manual_peer(req.peer_id, req.host, req.port)
         return {
@@ -878,8 +899,8 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             "all_peers": service.transport.peers,
         }
 
-    @app.post("/api/node/sync")
-    @app.post("/api/actions/sync")
+    @app.post("/api/node/sync", dependencies=[Depends(require_responder)])
+    @app.post("/api/actions/sync", dependencies=[Depends(require_responder)])
     def trigger_mesh_sync(source_id: Optional[str] = None, target_id: Optional[str] = None):
         """Run immediate anti-entropy sync against one or all peers."""
         if target_id:
@@ -889,7 +910,7 @@ def create_app(service: RescueNetNodeService) -> FastAPI:
             stats_list = service.gossip.trigger_now()
             return {"status": "SYNC_COMPLETE", "results": [s.to_dict() for s in stats_list]}
 
-    @app.post("/api/actions/event")
+    @app.post("/api/actions/event", dependencies=[Depends(require_responder)])
     def record_generic_event(req: GenericEventRequest):
         ev = service.node.record_event(
             entity_type=req.entity_type,
