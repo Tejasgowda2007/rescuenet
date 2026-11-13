@@ -13,10 +13,12 @@ import {
   FileSpreadsheet,
   ShieldCheck,
   Radio,
+  AlertOctagon,
 } from 'lucide-react';
 
 export type ViewType =
   | 'overview'
+  | 'incidents'
   | 'terrain3d'
   | 'map2d'
   | 'topology'
@@ -43,6 +45,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'overview', label: 'Operations Overview', icon: LayoutDashboard, hotkey: '1' },
+    { id: 'incidents', label: 'Incidents & Dispatch', icon: AlertOctagon, hotkey: '0' },
     { id: 'terrain3d', label: '3D Mountain Twin', icon: Mountain, hotkey: '2' },
     { id: 'map2d', label: '2D Tactical Map', icon: Map, hotkey: '3' },
     {

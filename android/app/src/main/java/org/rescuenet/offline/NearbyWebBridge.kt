@@ -7,6 +7,7 @@ import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * JavaScript Interface Bridge between RescueNet PWA Web Dashboard and
@@ -26,24 +27,26 @@ class NearbyWebBridge(
         // Wire up callbacks from meshService to trigger DOM custom events
         meshService.onPayloadReceived = { endpointId, rawBytes ->
             val base64 = Base64.encodeToString(rawBytes, Base64.NO_WRAP)
-            dispatchJsEvent(
-                "rescuenet-nearby-payload",
-                "{ endpointId: '$endpointId', payloadBase64: '$base64' }"
-            )
+            val json = JSONObject().apply {
+                put("endpointId", endpointId)
+                put("payloadBase64", base64)
+            }
+            dispatchJsEvent("rescuenet-nearby-payload", json.toString())
         }
 
         meshService.onPeerConnected = { endpointId, name ->
-            dispatchJsEvent(
-                "rescuenet-peer-connected",
-                "{ endpointId: '$endpointId', name: '$name' }"
-            )
+            val json = JSONObject().apply {
+                put("endpointId", endpointId)
+                put("name", name)
+            }
+            dispatchJsEvent("rescuenet-peer-connected", json.toString())
         }
 
         meshService.onPeerDisconnected = { endpointId ->
-            dispatchJsEvent(
-                "rescuenet-peer-disconnected",
-                "{ endpointId: '$endpointId' }"
-            )
+            val json = JSONObject().apply {
+                put("endpointId", endpointId)
+            }
+            dispatchJsEvent("rescuenet-peer-disconnected", json.toString())
         }
     }
 

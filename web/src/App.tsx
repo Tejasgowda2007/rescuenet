@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Navigation, ViewType } from './components/Navigation';
 import { Terrain3DView } from './components/views/Terrain3DView';
 import { OverviewView } from './components/views/OverviewView';
+import { IncidentsView } from './components/views/IncidentsView';
 import { Map2DView } from './components/views/Map2DView';
 import { TopologyView } from './components/views/TopologyView';
 import { StationsView } from './components/views/StationsView';
@@ -20,6 +21,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { NetworkStatusBar } from './components/NetworkStatusBar';
 import { offlineStorage } from './services/offlineStorage';
+import { initNearbyBridge } from './services/nearbyBridge';
 
 const DEFAULT_STATIONS: Record<string, StationData> = {
   alpha: {
@@ -244,7 +246,7 @@ function DashboardContent() {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as ViewType;
       const validViews: ViewType[] = [
-        'overview', 'terrain3d', 'map2d', 'topology', 'stations',
+        'overview', 'incidents', 'terrain3d', 'map2d', 'topology', 'stations',
         'comms', 'events', 'resources', 'analytics', 'scenarios', 'reports'
       ];
       if (validViews.includes(hash)) return hash;
@@ -272,7 +274,7 @@ function DashboardContent() {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '') as ViewType;
       const validViews: ViewType[] = [
-        'overview', 'terrain3d', 'map2d', 'topology', 'stations',
+        'overview', 'incidents', 'terrain3d', 'map2d', 'topology', 'stations',
         'comms', 'events', 'resources', 'analytics', 'scenarios', 'reports'
       ];
       if (validViews.includes(hash)) {
@@ -362,7 +364,26 @@ function DashboardContent() {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Keyboard Shortcuts (1-9 for views, Escape for modal close)
+  // Initialize Android Native Nearby Connections Bridge
+  useEffect(() => {
+    const unbind = initNearbyBridge(user?.username || 'alpha', {
+      onIncidentReceived: async (incident) => {
+        console.log('[App] Received incoming incident over Nearby:', incident);
+        await offlineStorage.saveIncidents([incident]);
+      },
+      onMessageReceived: async (message) => {
+        console.log('[App] Received incoming message over Nearby:', message);
+        await offlineStorage.saveMessages([message]);
+      },
+      onAlertReceived: async (alert) => {
+        console.log('[App] Received incoming SOS alert over Nearby:', alert);
+        await offlineStorage.saveAlerts([alert]);
+      },
+    });
+    return () => unbind();
+  }, [user]);
+
+  // Keyboard Shortcuts (0-9 for views, Escape for modal close)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
@@ -370,7 +391,8 @@ function DashboardContent() {
       }
       if (e.key === 'Escape') {
         setDemoOpen(false);
-      } else if (e.key === '1') handleViewChange('overview');
+      } else if (e.key === '0') handleViewChange('incidents');
+      else if (e.key === '1') handleViewChange('overview');
       else if (e.key === '2') handleViewChange('terrain3d');
       else if (e.key === '3') handleViewChange('map2d');
       else if (e.key === '4') handleViewChange('topology');
@@ -467,6 +489,12 @@ function DashboardContent() {
               terrain={terrain}
               onNavigate={handleViewChange}
               onSelectStation={handleSelectStation}
+            />
+          )}
+
+          {currentView === 'incidents' && (
+            <IncidentsView
+              onRefresh={refreshAll}
             />
           )}
 

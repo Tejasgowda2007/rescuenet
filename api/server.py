@@ -60,6 +60,17 @@ from allocation.tokens import TokenManager
 from allocation.conflict_resolver import ConflictResolver
 
 
+def broadcast_sync(message: Dict[str, Any]) -> None:
+    """Safely schedule a WebSocket broadcast from synchronous endpoints."""
+    if not ws_manager.active_connections:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(ws_manager.broadcast(message))
+    except (RuntimeError, Exception):
+        pass
+
+
 # Pydantic Schemas for Requests
 class EventRequest(BaseModel):
     node_id: str
@@ -104,12 +115,25 @@ class SOSRequest(BaseModel):
 
 class IncidentCreateRequest(BaseModel):
     node_id: str = "alpha"
-    incident_id: str
+    incident_id: Optional[str] = None
+    id: Optional[str] = None
     title: str
+    category: str = "MEDEVAC"
     severity: str = "HIGH"
     location: str = ""
     description: str = ""
+    reported_by: str = "field-responder"
     assigned_teams: List[str] = Field(default_factory=list)
+
+class MessageCreateRequest(BaseModel):
+    message_id: Optional[str] = None
+    id: Optional[str] = None
+    node_id: str = "alpha"
+    sender_id: str = "alpha"
+    recipient_id: str = "ALL"
+    content: str
+    priority: str = "ROUTINE"  # CRITICAL, HIGH, ROUTINE
+    location: str = ""
 
 class IncidentStatusRequest(BaseModel):
     node_id: str = "alpha"
@@ -593,51 +617,126 @@ def sync_node_endpoint(node_id: str, target_id: Optional[str] = None):
     return {"status": "SYNC_COMPLETE", "node_id": node_id, "results": results}
 
 @app.get("/api/incidents", dependencies=[Depends(get_current_user)])
-def list_incidents(node_id: str = "alpha"):
-    """List all emergency incidents from materialized state."""
-    if node_id not in state.nodes:
-        raise HTTPException(status_code=404, detail="Node not found")
-    node_state = state.nodes[node_id].get_state()
-    incidents = node_state.get("incident", {})
-    return list(incidents.values())
+def list_incidents(node_id: Optional[str] = None):
+    """List all emergency incidents across converged stations."""
+    all_incidents = {}
+    target_nodes = [node_id] if (node_id and node_id in state.nodes) else list(state.nodes.keys())
+    for nid in target_nodes:
+        n_state = state.nodes[nid].get_state()
+        incs = n_state.get("incident", {})
+        for i_id, i_data in incs.items():
+            if i_id not in all_incidents or i_data.get("_created_at", 0) > all_incidents[i_id].get("_created_at", 0):
+                all_incidents[i_id] = i_data
+    return sorted(list(all_incidents.values()), key=lambda x: x.get("_created_at", 0), reverse=True)
 
-@app.post("/api/incidents", dependencies=[Depends(require_coordinator)])
+@app.post("/api/incidents", dependencies=[Depends(require_responder)])
 def create_incident_endpoint(req: IncidentCreateRequest):
     """Create a new emergency disaster incident."""
-    if req.node_id not in state.nodes:
-        raise HTTPException(status_code=404, detail="Node not found")
-    node = state.nodes[req.node_id]
+    target_node = req.node_id if req.node_id in state.nodes else "alpha"
+    node = state.nodes[target_node]
+    iid = req.incident_id or req.id or f"inc-{int(time.time()*1000)%1000000}"
     payload = {
+        "id": iid,
         "title": req.title,
+        "category": req.category.upper(),
         "severity": req.severity.upper(),
         "location": req.location,
         "description": req.description,
+        "reported_by": req.reported_by,
         "status": "OPEN",
         "assigned_teams": req.assigned_teams or [],
+        "created_at": int(time.time() * 1000),
     }
-    ev = node.record_event("incident", req.incident_id, "CREATE", payload)
-    return {"status": "INCIDENT_CREATED", "incident_id": req.incident_id, "event_id": ev.event_id}
+    ev = node.record_event("incident", iid, "CREATE", payload)
+    
+    # Broadcast to connected WebSocket subscribers
+    broadcast_sync({
+        "type": "INCIDENT_UPDATE",
+        "incident": payload,
+        "event_id": ev.event_id,
+        "node_id": target_node,
+    })
+    
+    return {"status": "INCIDENT_CREATED", "incident_id": iid, "incident": payload, "event_id": ev.event_id}
 
-@app.post("/api/incidents/{incident_id}/status", dependencies=[Depends(require_coordinator)])
+@app.post("/api/incidents/{incident_id}/status", dependencies=[Depends(require_responder)])
 def update_incident_status_endpoint(incident_id: str, req: IncidentStatusRequest):
     """Update incident status, assign teams, or close incident."""
-    if req.node_id not in state.nodes:
-        raise HTTPException(status_code=404, detail="Node not found")
-    node = state.nodes[req.node_id]
+    target_node = req.node_id if req.node_id in state.nodes else "alpha"
+    node = state.nodes[target_node]
 
     if req.assign_team:
         ev = node.record_event("incident", incident_id, "ASSIGN_TEAM", {"team": req.assign_team})
+        broadcast_sync({"type": "INCIDENT_UPDATE", "incident_id": incident_id, "status": "TEAM_ASSIGNED", "team": req.assign_team})
         return {"status": "TEAM_ASSIGNED", "team": req.assign_team, "event_id": ev.event_id}
 
     if req.status and req.status.upper() == "RESOLVED":
         ev = node.record_event("incident", incident_id, "CLOSE_INCIDENT", {"resolution_notes": req.resolution_notes})
+        broadcast_sync({"type": "INCIDENT_UPDATE", "incident_id": incident_id, "status": "RESOLVED"})
         return {"status": "INCIDENT_RESOLVED", "event_id": ev.event_id}
 
     if req.status:
         ev = node.record_event("incident", incident_id, "UPDATE", {"status": req.status.upper()})
+        broadcast_sync({"type": "INCIDENT_UPDATE", "incident_id": incident_id, "status": req.status.upper()})
         return {"status": "INCIDENT_UPDATED", "event_id": ev.event_id}
 
     raise HTTPException(status_code=400, detail="No status or team assignment provided")
+
+@app.get("/api/messages", dependencies=[Depends(get_current_user)])
+def list_messages(node_id: Optional[str] = None):
+    """List emergency radio messages across mesh."""
+    all_messages = {}
+    target_nodes = [node_id] if (node_id and node_id in state.nodes) else list(state.nodes.keys())
+    for nid in target_nodes:
+        n_state = state.nodes[nid].get_state()
+        msgs = n_state.get("message", {})
+        for m_id, m_data in msgs.items():
+            if m_id not in all_messages or m_data.get("_created_at", 0) > all_messages[m_id].get("_created_at", 0):
+                all_messages[m_id] = m_data
+    return sorted(list(all_messages.values()), key=lambda x: x.get("timestamp", x.get("_created_at", 0)), reverse=True)
+
+@app.post("/api/messages", dependencies=[Depends(get_current_user)])
+def send_message_endpoint(req: MessageCreateRequest):
+    """Send emergency tactical radio message across the mesh."""
+    target_node = req.node_id if req.node_id in state.nodes else "alpha"
+    node = state.nodes[target_node]
+    mid = req.message_id or req.id or f"msg-{int(time.time()*1000)%1000000}"
+    payload = {
+        "id": mid,
+        "sender_id": req.sender_id,
+        "recipient_id": req.recipient_id,
+        "content": req.content,
+        "priority": req.priority.upper(),
+        "location": req.location,
+        "timestamp": int(time.time() * 1000),
+        "status": "DELIVERED",
+    }
+    ev = node.record_event("message", mid, "CREATE", payload)
+    
+    # Broadcast to live WebSocket clients
+    broadcast_sync({
+        "type": "NEW_MESSAGE",
+        "message": payload,
+        "event_id": ev.event_id,
+        "node_id": target_node,
+    })
+    
+    # Inject discrete-event packet into simulation engine
+    try:
+        pkt = Packet(
+            packet_id=f"pkt-{mid}",
+            source=req.sender_id,
+            destination=req.recipient_id if req.recipient_id != "ALL" else "beta",
+            msg_type="MESSAGE",
+            priority=PRIORITY_SOS if req.priority.upper() == "CRITICAL" else PRIORITY_SYNC,
+            payload=payload,
+            bytes_size=len(req.content.encode("utf-8")) + 64,
+        )
+        state.engine.schedule_packet(pkt)
+    except Exception:
+        pass
+
+    return {"status": "MESSAGE_SENT", "message_id": mid, "message": payload, "event_id": ev.event_id}
 
 @app.get("/api/victims", dependencies=[Depends(get_current_user)])
 def list_victims(node_id: str = "alpha"):

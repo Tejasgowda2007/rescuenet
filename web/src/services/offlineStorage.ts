@@ -3,11 +3,14 @@
  * 
  * Provides defense-grade local persistence for emergency responders operating
  * with zero cellular or network connectivity:
- * 1. Object Stores: 'incidents', 'victims', 'alerts', 'stations', 'outbox'.
+ * 1. Object Stores: 'incidents', 'messages', 'victims', 'alerts', 'stations', 'outbox'.
  * 2. Automatic Local Caching: Telemetry & queries fetched from the backend are mirrored locally.
  * 3. Store-and-Forward Outbox: Actions performed offline are queued locally in IndexedDB,
  *    persisted across browser reloads, and auto-synchronized when mesh connection is restored.
+ * 4. Android Nearby Integration: Directly broadcasts new incidents and messages over P2P BLE/Wi-Fi Direct.
  */
+
+import { isNearbyMeshAvailable, broadcastNearbyPayload } from './nearbyBridge';
 
 export interface OfflineIncident {
   id: string;
@@ -16,11 +19,25 @@ export interface OfflineIncident {
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   status: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
   location: string;
+  description?: string;
+  assigned_teams?: string[];
   lat?: number;
   lon?: number;
   reported_by: string;
   created_at: number;
   synced: boolean;
+}
+
+export interface OfflineMessage {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  priority: 'CRITICAL' | 'HIGH' | 'ROUTINE';
+  location?: string;
+  timestamp: number;
+  synced: boolean;
+  status?: 'QUEUED' | 'SENT' | 'DELIVERED';
 }
 
 export interface OfflineVictim {
@@ -56,7 +73,7 @@ export interface OutboxMutation {
 }
 
 const DB_NAME = 'RescueNet_FieldMesh_DB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for messages store
 
 class OfflineStorageManager {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -88,6 +105,14 @@ class OfflineStorageManager {
           store.createIndex('severity', 'severity', { unique: false });
           store.createIndex('status', 'status', { unique: false });
           store.createIndex('created_at', 'created_at', { unique: false });
+        }
+
+        // Messages store
+        if (!db.objectStoreNames.contains('messages')) {
+          const store = db.createObjectStore('messages', { keyPath: 'id' });
+          store.createIndex('timestamp', 'timestamp', { unique: false });
+          store.createIndex('priority', 'priority', { unique: false });
+          store.createIndex('sender_id', 'sender_id', { unique: false });
         }
 
         // Victims triage store
@@ -205,21 +230,80 @@ class OfflineStorageManager {
   }
 
   async addLocalIncident(incident: Omit<OfflineIncident, 'id' | 'created_at' | 'synced'>): Promise<OfflineIncident> {
+    const iid = `inc-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const fullIncident: OfflineIncident = {
       ...incident,
-      id: `inc-local-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: iid,
       created_at: Date.now(),
       synced: false,
     };
     await this.put('incidents', fullIncident);
 
-    // Queue in Outbox
-    await this.queueOutboxAction('/api/actions/incident', 'POST', fullIncident);
+    // Queue in Outbox for backend sync
+    await this.queueOutboxAction('/api/incidents', 'POST', fullIncident);
+
+    // If native Nearby Connections is available on Android, broadcast directly to peers
+    if (isNearbyMeshAvailable()) {
+      try {
+        const payloadString = JSON.stringify({ type: 'INCIDENT', data: fullIncident });
+        const base64 = btoa(unescape(encodeURIComponent(payloadString)));
+        broadcastNearbyPayload(base64);
+        console.log('[NearbyBridge] Direct P2P broadcast of new incident:', fullIncident.id);
+      } catch (err) {
+        console.warn('[NearbyBridge] Direct broadcast failed:', err);
+      }
+    }
+
     return fullIncident;
   }
 
   async getIncidents(): Promise<OfflineIncident[]> {
-    return this.getAll<OfflineIncident>('incidents');
+    const incs = await this.getAll<OfflineIncident>('incidents');
+    return incs.sort((a, b) => b.created_at - a.created_at);
+  }
+
+  // ----------------------------------------------------------------
+  // Messages & Dispatch Store Operations
+  // ----------------------------------------------------------------
+
+  async saveMessages(messages: OfflineMessage[]): Promise<void> {
+    await this.putBatch('messages', messages);
+  }
+
+  async addLocalMessage(msg: Omit<OfflineMessage, 'id' | 'timestamp' | 'synced'>): Promise<OfflineMessage> {
+    const mid = `msg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const fullMessage: OfflineMessage = {
+      ...msg,
+      id: mid,
+      timestamp: Date.now(),
+      synced: false,
+      status: 'QUEUED',
+    };
+    await this.put('messages', fullMessage);
+
+    // Queue in Outbox for backend sync
+    await this.queueOutboxAction('/api/messages', 'POST', fullMessage);
+
+    // If native Android Nearby Connections is active, broadcast immediately to nearby phones
+    if (isNearbyMeshAvailable()) {
+      try {
+        const payloadString = JSON.stringify({ type: 'MESSAGE', data: fullMessage });
+        const base64 = btoa(unescape(encodeURIComponent(payloadString)));
+        broadcastNearbyPayload(base64);
+        fullMessage.status = 'SENT';
+        await this.put('messages', fullMessage);
+        console.log('[NearbyBridge] Direct P2P broadcast of emergency message:', fullMessage.id);
+      } catch (err) {
+        console.warn('[NearbyBridge] Direct message broadcast failed:', err);
+      }
+    }
+
+    return fullMessage;
+  }
+
+  async getMessages(): Promise<OfflineMessage[]> {
+    const msgs = await this.getAll<OfflineMessage>('messages');
+    return msgs.sort((a, b) => b.timestamp - a.timestamp);
   }
 
   // ----------------------------------------------------------------
@@ -233,14 +317,14 @@ class OfflineStorageManager {
   async addLocalVictim(victim: Omit<OfflineVictim, 'id' | 'updated_at' | 'synced'>): Promise<OfflineVictim> {
     const fullVictim: OfflineVictim = {
       ...victim,
-      id: `vic-local-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: `vic-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       updated_at: Date.now(),
       synced: false,
     };
     await this.put('victims', fullVictim);
 
     // Queue in Outbox
-    await this.queueOutboxAction('/api/actions/victim', 'POST', fullVictim);
+    await this.queueOutboxAction('/api/victims', 'POST', fullVictim);
     return fullVictim;
   }
 
@@ -273,6 +357,15 @@ class OfflineStorageManager {
       message,
       urgency: 'CRITICAL',
     });
+
+    if (isNearbyMeshAvailable()) {
+      try {
+        const payloadString = JSON.stringify({ type: 'SOS', data: alert });
+        const base64 = btoa(unescape(encodeURIComponent(payloadString)));
+        broadcastNearbyPayload(base64);
+      } catch {}
+    }
+
     return alert;
   }
 
@@ -340,6 +433,22 @@ class OfflineStorageManager {
 
         if (res.ok) {
           await this.delete('outbox', mutation.id);
+          
+          // Mark corresponding local store item as synced
+          if (mutation.url.includes('/api/incidents') && mutation.body?.id) {
+            const inc = (await this.getAll<OfflineIncident>('incidents')).find((i) => i.id === mutation.body.id);
+            if (inc) {
+              inc.synced = true;
+              await this.put('incidents', inc);
+            }
+          } else if (mutation.url.includes('/api/messages') && mutation.body?.id) {
+            const m = (await this.getAll<OfflineMessage>('messages')).find((i) => i.id === mutation.body.id);
+            if (m) {
+              m.synced = true;
+              m.status = 'DELIVERED';
+              await this.put('messages', m);
+            }
+          }
           synced++;
         } else {
           mutation.status = 'FAILED';

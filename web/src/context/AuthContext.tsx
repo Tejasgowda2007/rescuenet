@@ -32,7 +32,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('rescuenet_token'));
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // If user session is already cached in localStorage, start with isLoading=false so dashboard renders instantly offline!
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('rescuenet_user') && Boolean(localStorage.getItem('rescuenet_token'));
+    } catch {
+      return false;
+    }
+  });
 
   // Helper to resolve full API URL
   const resolveUrl = (path: string) => {
@@ -42,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return base ? `${base}${cleanPath}` : cleanPath;
   };
 
-  // Authenticated fetch wrapper
+  // Authenticated fetch wrapper with automatic 3.5s timeout for offline resilience
   const apiFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
     const fullUrl = resolveUrl(url);
     const headers = new Headers(options.headers || {});
@@ -53,16 +61,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       headers.set('Authorization', `Bearer ${currentToken}`);
     }
 
+    // Set up AbortController with 3.5s timeout so offline requests never hang indefinitely
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     const mergedOptions: RequestInit = {
       ...options,
       headers,
+      signal: options.signal || controller.signal,
       credentials: 'include', // Include HttpOnly cookies
     };
 
     try {
       const response = await fetch(fullUrl, mergedOptions);
+      clearTimeout(timeoutId);
       if (response.status === 401 && !url.includes('/api/auth/login')) {
-        // Token expired or revoked; invalidate session
+        // Token expired or revoked on server
         setToken(null);
         setUser(null);
         localStorage.removeItem('rescuenet_token');
@@ -70,18 +84,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return response;
     } catch (err) {
+      clearTimeout(timeoutId);
       throw err;
     }
   };
 
-  // Verify stored session on boot
+  // Verify stored session in background on boot
   useEffect(() => {
+    let unmounted = false;
+
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('rescuenet_token');
       const storedUserStr = localStorage.getItem('rescuenet_user');
 
       if (!storedToken) {
-        setIsLoading(false);
+        if (!unmounted) setIsLoading(false);
         return;
       }
 
@@ -89,19 +106,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const res = await apiFetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          setUser(data.user);
-          setToken(storedToken);
-          localStorage.setItem('rescuenet_user', JSON.stringify(data.user));
+          // Ensure valid user object returned (and not synthetic offline snapshot)
+          if (data && data.user && data.user.id) {
+            if (!unmounted) {
+              setUser(data.user);
+              setToken(storedToken);
+              localStorage.setItem('rescuenet_user', JSON.stringify(data.user));
+            }
+          } else if (storedUserStr && !unmounted) {
+            // Offline fallback
+            setUser(JSON.parse(storedUserStr));
+          }
         } else if (res.status === 401) {
-          localStorage.removeItem('rescuenet_token');
-          localStorage.removeItem('rescuenet_user');
-          setToken(null);
-          setUser(null);
+          if (!unmounted) {
+            localStorage.removeItem('rescuenet_token');
+            localStorage.removeItem('rescuenet_user');
+            setToken(null);
+            setUser(null);
+          }
         }
       } catch (e) {
         // Network unreachable / offline mode:
-        // If a previously authenticated user exists in storage, preserve the offline session
-        if (storedUserStr) {
+        if (storedUserStr && !unmounted) {
           try {
             const cachedUser = JSON.parse(storedUserStr);
             setUser(cachedUser);
@@ -110,11 +136,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } catch {}
         }
       } finally {
-        setIsLoading(false);
+        if (!unmounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     checkAuth();
+    return () => {
+      unmounted = true;
+    };
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {

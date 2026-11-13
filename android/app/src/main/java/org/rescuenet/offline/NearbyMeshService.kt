@@ -39,6 +39,7 @@ class NearbyMeshService(private val context: Context) {
         val connectedAt: Long = System.currentTimeMillis()
     )
     val connectedPeers = ConcurrentHashMap<String, PeerInfo>()
+    private val pendingNames = ConcurrentHashMap<String, String>()
 
     // Callback listeners for UI bridge
     var onPeerConnected: ((endpointId: String, name: String) -> Unit)? = null
@@ -129,6 +130,7 @@ class NearbyMeshService(private val context: Context) {
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             Log.i(TAG, "Connection initiated from $endpointId (${info.endpointName}). Auto-accepting...")
+            pendingNames[endpointId] = info.endpointName
             // Autonomous authentication: auto-accept peer connection.
             // RescueNet validates integrity cryptographically at the wire level with Ed25519 & AES-256-GCM.
             connectionsClient.acceptConnection(endpointId, payloadCallback)
@@ -137,10 +139,11 @@ class NearbyMeshService(private val context: Context) {
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.STATUS_OK -> {
-                    Log.i(TAG, "Connected successfully to peer: $endpointId")
-                    val info = PeerInfo(endpointId, endpointId)
+                    val peerName = pendingNames.remove(endpointId) ?: endpointId
+                    Log.i(TAG, "Connected successfully to peer: $endpointId ($peerName)")
+                    val info = PeerInfo(endpointId, peerName)
                     connectedPeers[endpointId] = info
-                    onPeerConnected?.invoke(endpointId, endpointId)
+                    onPeerConnected?.invoke(endpointId, peerName)
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
                     Log.w(TAG, "Connection rejected by peer: $endpointId")

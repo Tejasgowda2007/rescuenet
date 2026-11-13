@@ -1,15 +1,14 @@
 /**
- * RescueNet FieldMesh Progressive Web App Service Worker (v1.0.0)
+ * RescueNet FieldMesh Progressive Web App Service Worker (v2.0.0)
  * 
- * Provides robust offline-first functionality for emergency responders:
- * 1. App Shell Caching (Cache-First): HTML, scripts, stylesheets, and icons load instantly offline.
- * 2. API Telemetry Caching (Network-First with Cache Fallback): Read queries return freshest network
- *    data when connected, but seamlessly fall back to local cached snapshots when disconnected.
- * 3. Offline Navigation Fallback: SPAs route to index.html offline without 404 or white-screen errors.
- * 4. Resilient Cache Invalidation: Automatically purges stale assets upon version increment.
+ * Provides defense-grade offline resilience:
+ * 1. Cache-First App Shell: HTML, CSS, JS, Fonts, and Icons are served immediately from cache.
+ * 2. Unhandled Rejection Prevention: All network fetch calls are caught; never breaks page load.
+ * 3. Dynamic Asset Caching: Any newly requested JS chunk or asset is captured into cache.
+ * 4. Fast API Timeout: Network-First API queries time out after 2.5s and fall back to cached snapshots.
  */
 
-const CACHE_NAME = 'rescuenet-fieldmesh-v1.0.0';
+const CACHE_NAME = 'rescuenet-fieldmesh-v2.0.0';
 
 const PRECACHE_ASSETS = [
   './',
@@ -23,13 +22,15 @@ const PRECACHE_ASSETS = [
   './icon.svg',
 ];
 
-// Install: Pre-cache App Shell assets
+// Install: Pre-cache core app shell
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[RescueNet SW] Pre-caching emergency operations app shell...');
-      return cache.addAll(PRECACHE_ASSETS);
+      console.log('[RescueNet SW] Pre-caching core app shell...');
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn('[RescueNet SW] Some precache assets failed to cache:', err);
+      });
     })
   );
 });
@@ -42,7 +43,7 @@ self.addEventListener('activate', (event) => {
         cacheNames
           .filter((name) => name.startsWith('rescuenet-') && name !== CACHE_NAME)
           .map((name) => {
-            console.log(`[RescueNet SW] Evicting legacy cache: ${name}`);
+            console.log(`[RescueNet SW] Purging stale cache: ${name}`);
             return caches.delete(name);
           })
       );
@@ -50,76 +51,83 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Strategy dispatch
+// Fetch: Robust strategy dispatch
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Ignore non-HTTP(S) requests (e.g. chrome-extension:, ws:)
-  if (!url.protocol.startsWith('http')) {
-    return;
-  }
+  // Ignore non-HTTP(S) schemes
+  if (!url.protocol.startsWith('http')) return;
 
-  // 1. Navigation requests: Network-First with cached index.html fallback
+  // 1. Navigation requests (Opening the SPA): Cache-First with network fallback
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-          }
-          return response;
-        })
-        .catch(async () => {
-          console.log('[RescueNet SW] Network offline: serving cached index.html');
-          const cachedIndex = await caches.match('./index.html');
-          if (cachedIndex) return cachedIndex;
-          const rootCached = await caches.match('./');
-          return rootCached || caches.match('/index.html');
-        })
+      caches.match('./index.html').then((cached) => {
+        if (cached) {
+          // Serve cached shell immediately for zero-latency offline start
+          fetch(request)
+            .then((res) => {
+              if (res && res.status === 200) {
+                const clone = res.clone();
+                caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+              }
+            })
+            .catch(() => {});
+          return cached;
+        }
+
+        // Not cached yet: fetch from network
+        return fetch(request)
+          .then((res) => {
+            if (res && res.status === 200) {
+              const clone = res.clone();
+              caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+            }
+            return res;
+          })
+          .catch(async () => {
+            const rootCached = await caches.match('./');
+            return rootCached || caches.match('/index.html') || new Response('Offline', { status: 503 });
+          });
+      })
     );
     return;
   }
 
-  // 2. API Endpoints: Network-First with Cache Fallback for GET requests
+  // 2. API Endpoints: Network-First with quick fallback
   if (url.pathname.startsWith('/api/')) {
     if (request.method === 'GET') {
       event.respondWith(
-        fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const resClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, resClone));
+        Promise.race([
+          fetch(request).then((res) => {
+            if (res && res.status === 200) {
+              const clone = res.clone();
+              caches.open(CACHE_NAME).then((c) => c.put(request, clone));
             }
-            return networkResponse;
-          })
-          .catch(async () => {
-            console.log(`[RescueNet SW] Offline: returning cached API response for ${url.pathname}`);
-            const cachedResponse = await caches.match(request);
-            if (cachedResponse) {
-              return cachedResponse;
+            return res;
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2500)),
+        ]).catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          return new Response(
+            JSON.stringify({ offline: true, error: 'Offline - Mesh currently unreachable' }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              status: 200,
             }
-            // Return synthetic empty data structure matching expected type
-            return new Response(
-              JSON.stringify({ offline: true, error: 'Offline - Cached snapshot unavailable' }),
-              {
-                headers: { 'Content-Type': 'application/json' },
-                status: 200,
-              }
-            );
-          })
+          );
+        })
       );
     } else {
-      // POST/PUT/DELETE API Requests
+      // POST/PUT/DELETE
       event.respondWith(
         fetch(request).catch(() => {
-          console.warn(`[RescueNet SW] Offline mutation attempted: ${request.method} ${url.pathname}`);
           return new Response(
             JSON.stringify({
               status: 'QUEUED_OFFLINE',
               queued: true,
-              message: 'Device offline. Mutation captured for mesh store-and-forward synchronization.',
+              message: 'Device offline. Mutation queued in IndexedDB outbox.',
               timestamp: Date.now(),
             }),
             {
@@ -133,37 +141,33 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static Assets (CSS, JS, Fonts, Images): Stale-While-Revalidate or Cache-First
+  // 3. Static Assets (.js, .css, images, fonts): Cache-First
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) {
-        // Return cached and update in background if online
-        fetch(request)
-          .then((networkRes) => {
-            if (networkRes && networkRes.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, networkRes));
-            }
-          })
-          .catch(() => {});
-        return cached;
-      }
+      if (cached) return cached;
 
-      // Not in cache: fetch from network and cache
-      return fetch(request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
+      return fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
           return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseToCache);
+        })
+        .catch(() => {
+          // If request is for an image/icon, return a transparent pixel or empty SVG
+          if (request.destination === 'image') {
+            return new Response(
+              '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"></svg>',
+              { headers: { 'Content-Type': 'image/svg+xml' } }
+            );
+          }
+          return new Response('', { status: 408, statusText: 'Request timed out / offline' });
         });
-        return response;
-      });
     })
   );
 });
 
-// Message communication between window and service worker
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
