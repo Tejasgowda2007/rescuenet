@@ -725,12 +725,13 @@ def send_message_endpoint(req: MessageCreateRequest):
     try:
         pkt = Packet(
             packet_id=f"pkt-{mid}",
-            source=req.sender_id,
-            destination=req.recipient_id if req.recipient_id != "ALL" else "beta",
+            source_id=req.sender_id,
+            destination_id=req.recipient_id if req.recipient_id != "ALL" else "beta",
+            prev_hop=req.sender_id,
+            next_hop="",
             msg_type="MESSAGE",
             priority=PRIORITY_SOS if req.priority.upper() == "CRITICAL" else PRIORITY_SYNC,
             payload=payload,
-            bytes_size=len(req.content.encode("utf-8")) + 64,
         )
         state.engine.schedule_packet(pkt)
     except Exception:

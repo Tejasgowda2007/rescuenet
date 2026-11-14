@@ -17,7 +17,7 @@ class ValidationError(Exception):
 ALLOWED_ENTITY_TYPES = {
     "shelter", "supply", "supply_intent", "need", "person",
     "scarce_item", "security", "incident", "victim",
-    "rescuer", "alert", "chat", "attachment",
+    "rescuer", "alert", "chat", "attachment", "message",
 }
 
 ALLOWED_OPERATIONS = {
